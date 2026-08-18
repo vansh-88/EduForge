@@ -1,18 +1,20 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
 import { healthRouter } from './routes/health.routes.js';
+import {CORS_ORIGIN} from './config/env.js';
 
 export const createApp = () => {
 
   const app = express();
-  dotenv.config();
 
-  app.use(cors());
-  app.use(express.json());
+  const corsOptions = {
+    origin: CORS_ORIGIN
+  };
 
-  app.use(healthRouter);
+  app.use(cors(corsOptions));
+  app.use(express.json())
+
+  app.use('/api',healthRouter);
 
   return app;
 } 
