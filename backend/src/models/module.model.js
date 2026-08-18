@@ -7,6 +7,11 @@ const moduleSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    goal: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     order: {
       type: Number,
       required: true,

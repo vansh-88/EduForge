@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tr } from 'zod/v4/locales';
 
 const courseSchema = new mongoose.Schema(
   {
@@ -9,6 +10,12 @@ const courseSchema = new mongoose.Schema(
     },
     description: {
       type: String,
+      trim: true,
+    },
+    learningGoals: {
+      type: [String],
+      default: [],
+      required: true,
       trim: true,
     },
     creator: {
