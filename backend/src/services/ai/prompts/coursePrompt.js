@@ -13,7 +13,7 @@ REQUIREMENTS & CONSTRAINTS:
 
 2. Modules (Strictly 3 to 6 modules):
    - Break the course down into a logical progression of modules.
-   - Each module must have a clear, concise and specific "title" and a single
+   - Each module must have a clear, concise and specific "title".
    - Each module must have a specific overarching "goal".
 
 3. Lessons (Strictly 3 to 5 lessons per module):
