@@ -3,9 +3,13 @@ import { tr } from 'zod/v4/locales';
 
 const courseSchema = new mongoose.Schema(
   {
-    title: {
+    query: {
       type: String,
       required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
       trim: true,
     },
     description: {
@@ -15,7 +19,6 @@ const courseSchema = new mongoose.Schema(
     learningGoals: {
       type: [String],
       default: [],
-      required: true,
       trim: true,
     },
     creator: {
