@@ -5,7 +5,7 @@ export async function generateStructured(prompt, schema) {
 
     // 1. Convert Zod → JSON Schema (OpenAPI 3 target is best for Gemini's responseSchema)
     const jsonSchema = z.toJSONSchema(schema, { 
-        target: 'openapi-3.0' 
+        target: 'openapi-3.0'
     });
     // console.log('Converted Zod to JSON:', JSON.stringify(jsonSchema));
 
