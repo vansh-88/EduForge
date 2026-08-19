@@ -56,13 +56,14 @@ export const mcqBlockSchema = z
     answer: z
       .number()
       .int('Answer index must be an integer')
-      .min(0, 'Answer index must be non-negative'),
+      .min(1, 'Answer index must be a positive integer')
+      .max(4, 'Answer index must be between 1 and 4'),
     explanation: z
       .string()
       .trim()
       .min(1, 'Explanation is required for answer validation'),
   })
-  .refine((data) => data.answer >= 0 && data.answer < data.options.length, {
+  .refine((data) => data.answer >= 1 && data.answer <= data.options.length, {
     message: 'Answer index is out of bounds for the provided options array',
     path: ['answer'],
   });
