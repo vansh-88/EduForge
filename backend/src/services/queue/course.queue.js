@@ -1,7 +1,6 @@
 import { Queue } from 'bullmq';
 
-import redisConnection from '../../config/redis.config.js';
-import { queueJobOptions } from '../../config/queue.config.js';
+import {redisConnection, queueJobOptions } from '../../config/index.js';
 
 export const COURSE_QUEUE_NAME = 'course-generation';
 

@@ -1,4 +1,4 @@
-import {QUEUE_ATTEMPTS, QUEUE_BACKOFF_TYPE, QUEUE_BACKOFF_DELAY, COURSE_WORKER_CONCURRENCY, } from './env.js';
+import {QUEUE_ATTEMPTS, QUEUE_BACKOFF_TYPE, QUEUE_BACKOFF_DELAY, } from './env.config.js';
 
 
 export const queueJobOptions = {
@@ -17,11 +17,5 @@ export const queueJobOptions = {
   removeOnFail: {
     age: 24 * 60 * 60,
     count: 5000,
-  },
-};
-
-export const workerConfig = {
-  course: {
-    concurrency: COURSE_WORKER_CONCURRENCY,
   },
 };

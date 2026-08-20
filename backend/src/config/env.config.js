@@ -1,11 +1,12 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+const NODE_ENV = process.env.NODE_ENV || 'development';
 const PORT = Number(process.env.PORT || 3000);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
 const MONGO_URI = process.env.MONGO_URI;
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_URL = process.env.REDIS_URL || 'REDIS_URL=redis://127.0.0.1:6379';
 
 const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
 
@@ -56,6 +57,7 @@ if (!GEMINI_API_KEY) {
 
 
 export {
+  NODE_ENV,
   PORT,
   MONGO_URI,
   CORS_ORIGIN,

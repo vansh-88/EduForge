@@ -1,5 +1,5 @@
 import { geminiProvider } from './gemini.js';
-import { AI_PROVIDER } from '../../config/env.js';
+import { AI_PROVIDER } from '../../config/env.config.js';
 
 const providerName = AI_PROVIDER;
 

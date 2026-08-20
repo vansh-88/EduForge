@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import { healthRouter } from './routes/health.routes.js';
-import {CORS_ORIGIN} from './config/env.js';
+import { router } from './routes/routes.js';
+import { CORS_ORIGIN } from './config/index.js';
+import {errorHandler} from './middlewares/error.middleware.js';
 
 export const createApp = () => {
 
@@ -14,7 +15,10 @@ export const createApp = () => {
   app.use(cors(corsOptions));
   app.use(express.json())
 
-  app.use('/api',healthRouter);
+  app.use('/api',router);
+
+  //global error handler
+  app.use(errorHandler);
 
   return app;
 } 

@@ -1,7 +1,7 @@
 import IORedis from 'ioredis';
-import { REDIS_URL } from './env.js';
+import { REDIS_URL } from './env.config.js';
 
-const redisConnection = new IORedis(REDIS_URL, {
+export const redisConnection = new IORedis(REDIS_URL, {
   maxRetriesPerRequest: null,
   enableReadyCheck: true,
 });
@@ -21,5 +21,3 @@ redisConnection.on('error', (error) => {
 redisConnection.on('close', () => {
   console.log('[Redis] connection closed');
 });
-
-export default redisConnection;

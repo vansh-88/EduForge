@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { tr } from 'zod/v4/locales';
 
 const courseSchema = new mongoose.Schema(
   {
@@ -17,9 +16,14 @@ const courseSchema = new mongoose.Schema(
       trim: true,
     },
     learningGoals: {
-      type: [String],
+      type: [
+        {
+          type: String,
+          trim: true,
+          minlength: 1,
+        }
+      ],
       default: [],
-      trim: true,
     },
     creator: {
       type: String,
@@ -32,7 +36,7 @@ const courseSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['GENERATING', 'READY', 'FAILED'],
+      enum: ['GENERATING', 'PROCESSING', 'READY', 'FAILED'],
       default: 'GENERATING',
       required: true,
     },
@@ -42,6 +46,10 @@ const courseSchema = new mongoose.Schema(
         ref: 'Module',
       },
     ],
+    lastError: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
