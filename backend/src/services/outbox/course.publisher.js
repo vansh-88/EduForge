@@ -48,7 +48,7 @@ async function claimEvents() {
         $inc: { attempts: 1 },
       },
       {
-        new: true,
+        returnDocument: 'after',
         sort: { createdAt: 1 }, // Process oldest first
       }
     );

@@ -87,7 +87,7 @@ export async function runAiCourseGeneration({ courseId, userId, topic, job }) {
         status: 'PROCESSING',
       },
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   //If null, another worker instance already claimed it or it was completed/failed
