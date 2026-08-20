@@ -13,6 +13,7 @@ const lessonSchema = new mongoose.Schema(
     },
     objectives: {
       type: [String],
+      required: true,
       default: [],
     },
     content: {

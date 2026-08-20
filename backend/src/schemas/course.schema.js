@@ -24,6 +24,17 @@ export const generatedLessonSchema = z.object({
     .trim()
     .min(1, 'Lesson title must be at least 1 character')
     .max(300, 'Lesson title must not exceed 300 characters'),
+
+  objectives: z
+    .array(
+      z
+      .string()
+      .trim()
+      .min(1, 'Objective cannot be empty')
+      .max(300, 'Objective must not exceed 300 characters')
+    )
+    .min(1, 'Lesson must have at least 1 objective')
+    .max(8, 'Lesson cannot exceed 8 objectives'),
 });
 
 // Module Schema (1 goal, 3-5 lessons)

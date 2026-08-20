@@ -19,9 +19,15 @@ REQUIREMENTS & CONSTRAINTS:
 3. Lessons (Strictly 3 to 5 lessons per module):
    - For each module, outline the lessons required to achieve the module's goal.
    - Each lesson should teach one coherent concept.
-   - Provide only the "title" for each lesson. Do NOT generate lesson content, quizzes, or text blocks—only the titles.
-   - Ensure lesson titles represent a clear, step-by-step learning progression.
-   - Every lesson must contribute directly to its module goal.
+   - For each lesson, provide:
+     a. "title": a clear, concise, and specific lesson title.
+     b. "objectives": between 1 and 8 specific, measurable learning objectives describing what the student should be able to understand, explain, apply, or accomplish after completing the lesson.
+   - Do NOT generate lesson content, explanations, quizzes, code blocks, videos, or text blocks.
+   - Only generate the lesson title and its learning objectives.
+   - Objectives must be specific to the individual lesson and must not simply repeat the module goal.
+   - Objectives should follow the lesson's role in the overall learning progression.
+   - Ensure every objective is directly supported by the lesson title and contributes to the module goal.
+   - Ensure lesson titles and objectives form a logical, step-by-step learning progression.
    - The final lesson of a module should help consolidate or apply the concepts introduced in that module when appropriate.
    - Do not repeat the same concept across multiple lessons unless repetition is pedagogically necessary.
 
