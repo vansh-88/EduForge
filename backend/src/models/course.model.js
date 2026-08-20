@@ -28,7 +28,6 @@ const courseSchema = new mongoose.Schema(
     creator: {
       type: String,
       required: true, // Auth0 sub
-      index: true,
     },
     tags: {
       type: [String],
@@ -53,5 +52,8 @@ const courseSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Compound index to guarantee unique ordering per module
+courseSchema.index({ creator: 1,  createdAt: -1 });
 
 export const Course = mongoose.model('Course', courseSchema);
