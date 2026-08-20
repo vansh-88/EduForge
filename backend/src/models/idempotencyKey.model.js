@@ -21,7 +21,7 @@ const idempotencyKeySchema = new mongoose.Schema(
     resourceType: {
       type: String,
       required: true,
-      enum: ['COURSE_GENERATION'],
+      enum: ['COURSE_GENERATION', 'LESSON_GENERATION'],
     },
 
     resourceId: {

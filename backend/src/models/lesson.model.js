@@ -22,7 +22,7 @@ const lessonSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'GENERATING', 'READY', 'FAILED'],
+      enum: ['PENDING', 'GENERATING','PROCESSING', 'READY', 'FAILED'],
       default: 'PENDING',
       required: true,
     },
@@ -30,6 +30,18 @@ const lessonSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Module',
       required: true,
+    },
+    lastError: {
+      type: String,
+      default: null,
+    },
+    startedAt: {
+      type: Date,
+      default: null,
+    },
+    attempts: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true }
