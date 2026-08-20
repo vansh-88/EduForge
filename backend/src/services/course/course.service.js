@@ -46,7 +46,7 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
       );
 
       // 4. Create the Outbox Event (This replaces direct worker/queue calls)
-      const eventId = `course-generation:${course._id}`;
+      const eventId = `course-generation-${course._id}`;
       
       await OutboxEvent.create(
         [
