@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration } from '../services/course/course.service.js';
 import { Course } from '../../models/index.js';
-
+import mongoose from 'mongoose';
 
 function getAuthenticatedUserId(req) {
   return req.auth?.payload?.sub || req.user?.sub || req.user?.id || null;
@@ -69,7 +69,7 @@ export const listCourses = async (req, res, next) => {
       }); 
     }
 
-    let { page = '1', limit = '10', query, title, status, tag } = req.query;
+    let { page = '1', limit = '10', query, title, status, tags } = req.query;
 
     page = Number(page);
     limit = Number(limit);
@@ -153,6 +153,62 @@ export const listCourses = async (req, res, next) => {
     next(error);
   }
 };
+
+
+export const getCourseById = async (req, res, next) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User not found',
+      });
+    }
+
+    const { courseId } = req.params;
+
+    // Validate MongoDB ObjectId before querying
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid course ID',
+      });
+    }
+
+    const course = await Course.findOne({
+      _id: courseId,
+      creator: userId,
+    })
+      .populate({
+        path: 'modules',
+        select: 'title goal order',
+      })
+      .lean();
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: 'Course not found',
+      });
+    }
+
+    // Ensure modules are always returned in their intended order.
+    if (Array.isArray(course.modules)) {
+      course.modules.sort((a, b) => a.order - b.order);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        course,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 
 
