@@ -24,7 +24,27 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const QUEUE_ATTEMPTS = Number(process.env.QUEUE_ATTEMPTS || 3);
 const QUEUE_BACKOFF_TYPE = process.env.QUEUE_BACKOFF_TYPE || 'exponential';
 const QUEUE_BACKOFF_DELAY = Number(process.env.QUEUE_BACKOFF_DELAY || 2000);
+
+
+/*
+|--------------------------------------------------------------------------
+| Lesson Queue configuration
+|--------------------------------------------------------------------------
+*/
+
+
 const COURSE_WORKER_CONCURRENCY = Number(process.env.COURSE_WORKER_CONCURRENCY || 2);
+
+
+/*
+|--------------------------------------------------------------------------
+| Lesson Queue configuration
+|--------------------------------------------------------------------------
+*/
+
+
+const LESSON_WORKER_CONCURRENCY = Number(process.env.LESSON_WORKER_CONCURRENCY || 3);
+
 
 
 /*
@@ -72,6 +92,8 @@ export {
   QUEUE_BACKOFF_TYPE,
   QUEUE_BACKOFF_DELAY,
   COURSE_WORKER_CONCURRENCY,
+
+  LESSON_WORKER_CONCURRENCY,
 
   OUTBOX_POLL_INTERVAL_MS,
   OUTBOX_BATCH_SIZE,
