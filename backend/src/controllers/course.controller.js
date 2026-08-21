@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration } from '../services/course/course.service.js';
-import { Course } from '../../models/index.js';
+import { Course, Module } from '../models/index.js';
 import mongoose from 'mongoose';
 
 function getAuthenticatedUserId(req) {
@@ -207,6 +207,66 @@ export const getCourseById = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+
+export const getModuleById = async (req, res, next) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User not found',
+      });
+    }
+
+    const { courseId, moduleId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(courseId) || !mongoose.Types.ObjectId.isValid(moduleId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid course or module ID',
+      });
+    }
+
+    const module = await Module.findOne({
+      _id: moduleId,
+      course: courseId,
+    })
+      .populate({ path: 'course', select: 'creator' })
+      .populate({ path: 'lessons', select: 'title order status objectives' })
+      .lean();
+
+    if (!module || module.course.creator !== userId) {
+      return res.status(404).json({
+        success: false,
+        error: 'Module not found',
+      });
+    }
+
+    // Ensure lessons are always returned in their intended order.
+    if (Array.isArray(module.lessons)) {
+      module.lessons.sort((a, b) => a.order - b.order);
+    }
+
+    // course was only needed for the ownership check above — don't leak it in the response.
+    delete module.course;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        module,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+export const retryCourseGeneration = async (req, res, next) => {
+
 };
 
 
