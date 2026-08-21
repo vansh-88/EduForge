@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { connectDB, redisConnection } from '../config/index.js';
 import { courseWorker } from './course.worker.js';
+import { lessonWorker } from './lesson.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
 
 
@@ -45,6 +46,8 @@ async function gracefulShutdown(signal) {
     // 2. Stop accepting new jobs and wait for active jobs to finish
     await courseWorker.close();
     console.log('✅ CourseWorker stopped.');
+    await lessonWorker.close();
+    console.log('✅ LessonWorker stopped.');
 
     // 3. quit Redis connection
     redisConnection.quit();

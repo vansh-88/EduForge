@@ -86,23 +86,6 @@ export const lessonBlockSchema = z.discriminatedUnion('type', [
 
 export const lessonOutputSchema = z
   .object({
-    title: z
-      .string({ required_error: 'Lesson title is required' })
-      .trim()
-      .min(1, 'Lesson title must be at least 1 character')
-      .max(300, 'Lesson title must not exceed 300 characters'),
-
-    objectives: z
-      .array(
-        z
-          .string()
-          .trim()
-          .min(1, 'Objective cannot be empty')
-          .max(500, 'Objective must not exceed 500 characters')
-      )
-      .min(1, 'Lesson must contain at least 1 objective')
-      .max(8, 'Lesson cannot exceed 8 objectives'),
-
     content: z
       .array(lessonBlockSchema)
       .min(1, 'Lesson content must contain at least 1 block')
