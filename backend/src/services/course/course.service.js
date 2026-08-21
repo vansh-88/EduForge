@@ -1,16 +1,7 @@
 import mongoose from 'mongoose';
 import { Course, OutboxEvent, IdempotencyKey } from '../../models/index.js';
+import crypto from 'node:crypto';
 
-/**
- * Executes the atomic transaction to initialise new course generation.
- * Handles idempotency safely, including concurrent race conditions.
- * @param {Object} params
- * @param {string} params.userId
- * @param {string} params.topic
- * @param {string} params.idempotencyKey
- * @param {string} params.requestHash
- * @returns {Promise<{ isCached: boolean, statusCode: number, data: Object }>}
- */
 
 export async function newCourseGeneration({ userId, topic, idempotencyKey, requestHash }) {
   
@@ -40,13 +31,15 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
             creator: userId,
             status: 'GENERATING',
             modules: [],
+            startedAt: new Date(),
           },
         ],
         { session }
       );
 
       // 4. Create the Outbox Event (This replaces direct worker/queue calls)
-      const eventId = `course-generation-${course._id}`;
+      const generationId = crypto.randomUUID();
+      const eventId = `course-generation-${course._id}-${generationId}`;
       
       await OutboxEvent.create(
         [
@@ -59,6 +52,7 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
               courseId: course._id.toString(),
               userId,
               topic,
+              generationId,
             },
             status: 'PENDING',
           },
@@ -107,6 +101,121 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
     }
     
     // Bubble up any other unexpected DB errors
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+}
+
+
+export async function retryCourseGeneration({ userId, courseId, idempotencyKey, requestHash }) {
+
+  // 1. Fast Path: idempotency
+  const existing = await IdempotencyKey.findOne({ userId, key: idempotencyKey });
+
+  if (existing) {
+    if (existing.requestHash !== requestHash) {
+      const error = new Error('Idempotency-Key was already used with a different request payload');
+      error.message = 'IDEMPOTENCY_CONFLICT';
+      throw error;
+    }
+    return { isCached: true, statusCode: existing.statusCode, data: existing.response };
+  }
+
+  // 2. Load + authorize
+  const course = await Course.findOne({ _id: courseId, creator: userId });
+
+  if (!course) {
+    const error = new Error('Course not found');
+    error.message = 'NOT_FOUND';
+    throw error;
+  }
+
+  // 3. Short-circuit on terminal/in-flight status
+  if (course.status === 'READY') {
+    return {
+      isCached: false,
+      statusCode: 200,
+      data: { success: true, message: 'Course already generated', courseId, status: 'READY' },
+    };
+  }
+
+  if (course.status === 'GENERATING' || course.status === 'PROCESSING') {
+    return {
+      isCached: false,
+      statusCode: 202,
+      data: { success: true, message: 'Course generation already in progress', courseId, status: 'GENERATING' },
+    };
+  }
+
+  // 4. Transactional CAS transition (course.status must be FAILED)
+  const session = await mongoose.startSession();
+  let responseBody;
+  let transitioned = true;
+
+  try {
+    await session.withTransaction(async () => {
+      const generationId = crypto.randomUUID();
+
+      const updated = await Course.findOneAndUpdate(
+        { _id: courseId, status: 'FAILED' },
+        {
+          $set: { status: 'GENERATING', lastError: null, startedAt: new Date() },
+          $inc: { attempts: 1 },
+        },
+        { session, returnDocument: 'after' }
+      );
+
+      if (!updated) {
+        transitioned = false;
+        return;
+      }
+
+      const eventId = `course-generation-${courseId}-${generationId}`;
+
+      await OutboxEvent.create([{
+        eventId,
+        type: 'COURSE_GENERATION_REQUESTED',
+        aggregateType: 'Course',
+        aggregateId: updated._id,
+        payload: {
+          courseId: courseId.toString(),
+          userId,
+          topic: updated.query,
+          generationId,
+        },
+        status: 'PENDING',
+      }], { session });
+
+      responseBody = { success: true, message: 'Course generation retry started', courseId, status: 'GENERATING' };
+
+      await IdempotencyKey.create([{
+        userId, key: idempotencyKey, requestHash,
+        resourceType: 'COURSE_RETRY', resourceId: updated._id,
+        statusCode: 202, response: responseBody,
+      }], { session });
+    });
+
+    if (!transitioned) {
+      const current = await Course.findById(courseId);
+      if (current.status === 'READY') {
+        return { isCached: false, statusCode: 200, data: { success: true, message: 'Course already generated', courseId, status: 'READY' } };
+      }
+      return { isCached: false, statusCode: 202, data: { success: true, message: 'Course generation already in progress', courseId, status: 'GENERATING' } };
+    }
+
+    return { isCached: false, statusCode: 202, data: responseBody };
+
+  } catch (error) {
+    if (error?.code === 11000 && error?.keyPattern?.userId && error?.keyPattern?.key) {
+      const raceWinner = await IdempotencyKey.findOne({ userId, key: idempotencyKey });
+      if (raceWinner && raceWinner.requestHash === requestHash) {
+        return { isCached: true, statusCode: raceWinner.statusCode, data: raceWinner.response };
+      }
+      const conflictError = new Error('Idempotency-Key was already used with a different request payload');
+      conflictError.message = 'IDEMPOTENCY_CONFLICT';
+      throw conflictError;
+    }
     throw error;
   } finally {
     await session.endSession();

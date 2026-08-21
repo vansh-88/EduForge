@@ -73,7 +73,7 @@ async function persistGeneratedCourse(session, { courseId, userId, aiResponse })
  * @param {import('bullmq').Job} [params.job] - Optional BullMQ job for progress tracking
  */
 
-export async function runAiCourseGeneration({ courseId, userId, topic, job }) {
+export async function runAiCourseGeneration({ courseId, userId, topic, job, generationId }) {
   
   // 1. ATOMIC CLAIM: Only one worker can flip from 'GENERATING' to 'PROCESSING'
   const claimedCourse = await Course.findOneAndUpdate(
@@ -92,7 +92,7 @@ export async function runAiCourseGeneration({ courseId, userId, topic, job }) {
 
   //If null, another worker instance already claimed it or it was completed/failed
   if (!claimedCourse) {
-    console.log(`[Worker] Job skipped: Course ${courseId} is already claimed, completed, or missing.`);
+    console.log(`[Worker] Job skipped: Course ${courseId} & ${generationId} is already claimed, completed, or missing.`);
     return;
   }
 

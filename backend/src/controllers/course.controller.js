@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
-import { newCourseGeneration } from '../services/course/course.service.js';
+import { newCourseGeneration, retryCourseGeneration as retryCourseGenerationService } from '../services/course/course.service.js';
 import { Course, Module } from '../models/index.js';
 import mongoose from 'mongoose';
+
 
 function getAuthenticatedUserId(req) {
   return req.auth?.payload?.sub || req.user?.sub || req.user?.id || null;
@@ -266,7 +267,44 @@ export const getModuleById = async (req, res, next) => {
 
 
 export const retryCourseGeneration = async (req, res, next) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
 
+    const { courseId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({ success: false, error: 'Invalid course ID' });
+    }
+
+    const idempotencyKey = req.get('Idempotency-Key');
+    if (!idempotencyKey) {
+      return res.status(400).json({ success: false, error: 'Idempotency-Key header is required' });
+    }
+
+    const requestHash = hashRequest({ courseId });
+
+    const result = await retryCourseGenerationService({
+      userId, courseId, idempotencyKey, requestHash,
+    });
+
+    if (result.isCached) {
+      res.set('X-Idempotency-Replayed', 'true');
+    }
+
+    return res.status(result.statusCode).json(result.data);
+
+  } catch (error) {
+    if (error.message === 'IDEMPOTENCY_CONFLICT') {
+      return res.status(409).json({ success: false, error: error.message });
+    }
+    if (error.message === 'NOT_FOUND') {
+      return res.status(404).json({ success: false, error: 'Course not found' });
+    }
+    next(error);
+  }
 };
 
 

@@ -6,17 +6,17 @@ import {COURSE_QUEUE_NAME} from '../services/queue/course.queue.js';
 export const courseWorker = new Worker(
   COURSE_QUEUE_NAME,
   async (job) => {
-    const { courseId, userId, topic } = job.data;
+    const { courseId, userId, topic, generationId } = job.data;
     const maxAttempts = job.opts.attempts || 3;
     const currentAttempt = job.attemptsMade + 1;
 
-    console.log( `[CourseWorker] ⚙️ Processing job=${job.id} course=${courseId} attempt=${currentAttempt}/${maxAttempts}` );
+    console.log( `[CourseWorker] ⚙️ Processing job=${job.id} course=${courseId} generation=${generationId} attempt=${currentAttempt}/${maxAttempts}` );
 
     // Update progress so the frontend could theoretically track it
     await job.updateProgress({ stage: 'GENERATION_STARTED' });
 
     // Execute the heavy AI logic
-    return await runAiCourseGeneration({ courseId, userId, topic, job });
+    return await runAiCourseGeneration({ courseId, userId, topic, generationId, job });
 
   },
   {

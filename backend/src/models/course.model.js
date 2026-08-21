@@ -49,6 +49,14 @@ const courseSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    attempts: {
+      type: Number,
+      default: 0,
+    },
+    startedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
