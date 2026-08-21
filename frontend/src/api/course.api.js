@@ -1,9 +1,9 @@
 import apiClient from './client';
 
-export const generateCourse = async (topic) => {
+export const generateCourse = async ({ topic, difficulty }) => {
   const response = await apiClient.post(
     '/v1/course/generate',
-    { topic },
+    { topic, difficulty },
     {
       headers: {
         'Idempotency-Key': crypto.randomUUID(),
@@ -11,7 +11,7 @@ export const generateCourse = async (topic) => {
     }
   );
   
-  return response.data.data; 
+  return response.data; 
 };
 
 export const listCourses = async (params = {}) => {
@@ -48,5 +48,5 @@ export const retryCourseGeneration = async (courseId) => {
       },
     }
   );
-  return response.data.data;
+  return response.data;
 };
