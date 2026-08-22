@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEY, GEMINI_MODEL } from '../../config/index.js';
+import { GEMINI_API_KEY, GEMINI_MODEL } from '../../config/env.config.js';
 import {z} from 'zod';
 import { sanitizeForGemini } from '../../utils/gemini/sanitiseJson.js';
 

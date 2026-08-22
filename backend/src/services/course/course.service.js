@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { Course, OutboxEvent, IdempotencyKey } from '../../models/index.js';
 import crypto from 'node:crypto';
-
+import { ApiError } from '../../utils/ApiError.js';
 
 export async function newCourseGeneration({ userId, topic, idempotencyKey, requestHash }) {
   
@@ -10,9 +10,7 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
 
   if (existing) {
     if (existing.requestHash !== requestHash) {
-      const error = new Error('Idempotency-Key was already used with a different request payload');
-      error.message = 'IDEMPOTENCY_CONFLICT';
-      throw error;
+      throw ApiError.conflict('Idempotency-Key was already used with a different request payload', { code: 'IDEMPOTENCY_CONFLICT' });
     }
     return { isCached: true, statusCode: existing.statusCode, data: existing.response };
   }
@@ -95,9 +93,7 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
         return { isCached: true, statusCode: raceWinner.statusCode, data: raceWinner.response };
       }
       
-      const conflictError = new Error('Idempotency-Key was already used with a different request payload');
-      conflictError.message = 'IDEMPOTENCY_CONFLICT';
-      throw conflictError;
+      throw ApiError.conflict('Idempotency-Key was already used with a different request payload', { code: 'IDEMPOTENCY_CONFLICT' });
     }
     
     // Bubble up any other unexpected DB errors
@@ -115,9 +111,7 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
 
   if (existing) {
     if (existing.requestHash !== requestHash) {
-      const error = new Error('Idempotency-Key was already used with a different request payload');
-      error.message = 'IDEMPOTENCY_CONFLICT';
-      throw error;
+      throw ApiError.conflict('Idempotency-Key was already used with a different request payload', { code: 'IDEMPOTENCY_CONFLICT' });
     }
     return { isCached: true, statusCode: existing.statusCode, data: existing.response };
   }
@@ -126,9 +120,7 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
   const course = await Course.findOne({ _id: courseId, creator: userId });
 
   if (!course) {
-    const error = new Error('Course not found');
-    error.message = 'NOT_FOUND';
-    throw error;
+    throw ApiError.notFound('Course not found', { code: 'NOT_FOUND' });
   }
 
   // 3. Short-circuit on terminal/in-flight status
@@ -212,9 +204,7 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
       if (raceWinner && raceWinner.requestHash === requestHash) {
         return { isCached: true, statusCode: raceWinner.statusCode, data: raceWinner.response };
       }
-      const conflictError = new Error('Idempotency-Key was already used with a different request payload');
-      conflictError.message = 'IDEMPOTENCY_CONFLICT';
-      throw conflictError;
+      throw ApiError.conflict('Idempotency-Key was already used with a different request payload', { code: 'IDEMPOTENCY_CONFLICT' });
     }
     throw error;
   } finally {

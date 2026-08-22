@@ -1,6 +1,6 @@
 import { OutboxEvent } from '../../models/index.js';
 import { courseGenerationQueue } from '../queue/course.queue.js';
-import { OUTBOX_POLL_INTERVAL_MS, OUTBOX_BATCH_SIZE, OUTBOX_MAX_ATTEMPTS } from '../../config/index.js';
+import { OUTBOX_POLL_INTERVAL_MS, OUTBOX_BATCH_SIZE, OUTBOX_MAX_ATTEMPTS } from '../../config/env.config.js';
 import {lessonGenerationQueue} from '../queue/lesson.queue.js';
 
 // Configuration

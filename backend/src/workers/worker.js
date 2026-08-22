@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
-import { connectDB, redisConnection } from '../config/index.js';
+import { connectDB } from '../config/db.config.js';
+import { workerConfig } from '../config/worker.config.js';
 import { courseWorker } from './course.worker.js';
 import { lessonWorker } from './lesson.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';

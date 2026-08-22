@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import { redisConnection } from '../config/index.js';
+import { redisConnection } from '../config/redis.config.js';
 import { courseGenerationQueue } from '../services/queue/course.queue.js';
 import { lessonGenerationQueue } from '../services/queue/lesson.queue.js';
 

@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
-import { redisConnection, workerConfig } from '../config/index.js';
+import { redisConnection } from '../config/redis.config.js';
+import { workerConfig } from '../config/worker.config.js';
 import { runAiLessonGeneration } from './processors/lessonGeneration.processor.js';
 import { LESSON_QUEUE_NAME } from '../services/queue/lesson.queue.js';
 

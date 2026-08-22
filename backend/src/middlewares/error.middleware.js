@@ -1,7 +1,19 @@
-import {NODE_ENV} from '../config/index.js';
+import {NODE_ENV} from '../config/env.config.js';
+import { ApiError } from '../utils/ApiError.js';
 
 export const errorHandler = (err, req, res, next) => {
-  // 1. Intercept Zod Validation Errors
+  
+  // 1. Intercept custom API Errors first (Most specific)
+  if (err instanceof ApiError) {
+    return res.status(err.statusCode).json({
+      success: false,
+      error: err.message,
+      ...(err.code && { code: err.code }),
+      ...(err.details && { details: err.details }),
+    });
+  }
+
+  // 2. Intercept Zod Validation Errors
   if (err.name === 'ZodError') {
     const rawIssues = err.issues || err.errors || [];
 
@@ -15,7 +27,7 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // 2. Intercept MongoDB Duplicate Key Errors (e.g., unique indexes)
+  // 3. Intercept MongoDB Duplicate Key Errors (e.g., unique indexes)
   if (err.code === 11000) {
     return res.status(409).json({
       success: false,
@@ -24,7 +36,7 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // 3. Fallback for all other errors
+  // 4. Fallback for all other errors
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
 

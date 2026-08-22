@@ -1,18 +1,9 @@
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { Lesson, OutboxEvent, IdempotencyKey } from '../../models/index.js';
+import { ApiError } from '../../utils/ApiError.js';
 
-/**
- * Executes the atomic transaction to initialise lesson generation.
- * Handles idempotency, authorization, status short-circuiting, and concurrent race conditions.
- * @param {Object} params
- * @param {string} params.userId
- * @param {string} params.courseId
- * @param {string} params.lessonId
- * @param {string} params.idempotencyKey
- * @param {string} params.requestHash
- * @returns {Promise<{ isCached: boolean, statusCode: number, data: Object }>}
- */
+
 export async function requestLessonGeneration({ userId, courseId, lessonId, idempotencyKey, requestHash }) {
   
   // 1. Fast Path: Check if this idempotency key was already used successfully
@@ -20,9 +11,7 @@ export async function requestLessonGeneration({ userId, courseId, lessonId, idem
 
   if (existing) {
     if (existing.requestHash !== requestHash) {
-      const error = new Error('Idempotency-Key was already used with a different request payload');
-      error.message = 'IDEMPOTENCY_CONFLICT';
-      throw error;
+      throw ApiError.conflict('Idempotency-Key was already used with a different request payload', { code: 'IDEMPOTENCY_CONFLICT' });
     }
     return { isCached: true, statusCode: existing.statusCode, data: existing.response };
   }
@@ -40,9 +29,7 @@ export async function requestLessonGeneration({ userId, courseId, lessonId, idem
     lesson.module.course._id.toString() !== courseId || 
     lesson.module.course.creator.toString() !== userId
   ) {
-    const error = new Error('Resource not found');
-    error.message = 'NOT_FOUND';
-    throw error;
+    throw ApiError.notFound('Lesson not found', { code: 'NOT_FOUND' });
   }
 
   // 3. Short-circuit on terminal/in-flight status
@@ -163,9 +150,7 @@ export async function requestLessonGeneration({ userId, courseId, lessonId, idem
         return { isCached: true, statusCode: raceWinner.statusCode, data: raceWinner.response };
       }
       
-      const conflictError = new Error('Idempotency-Key was already used with a different request payload');
-      conflictError.message = 'IDEMPOTENCY_CONFLICT';
-      throw conflictError;
+      throw ApiError.conflict('Idempotency-Key was already used with a different request payload', { code: 'IDEMPOTENCY_CONFLICT' });
     }
     
     // Bubble up any other unexpected DB errors
