@@ -4,6 +4,7 @@ import { workerConfig } from '../config/worker.config.js';
 import { courseWorker } from './course.worker.js';
 import { lessonWorker } from './lesson.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
+import { redisConnection } from '../config/redis.config.js';
 
 
 async function startWorkers() {

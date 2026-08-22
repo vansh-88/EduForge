@@ -13,6 +13,9 @@ const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
+const AUTH0_ISSUER = process.env.AUTH0_ISSUER;
+const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -74,6 +77,13 @@ if (!GEMINI_API_KEY) {
   throw new Error('GEMINI_API_KEY is not defined');
 }
 
+if (!AUTH0_ISSUER || !AUTH0_AUDIENCE) {
+  throw new Error('Missing required environment variables: AUTH0_ISSUER, or AUTH0_AUDIENCE');
+}
+
+
+// express-oauth2-jwt-bearer requires the issuer base URL to end with a trailing slash.
+export const AUTH0_ISSUER_BASE_URL = AUTH0_ISSUER.endsWith('/') ? AUTH0_ISSUER : `${AUTH0_ISSUER}/`;
 
 
 export {
@@ -98,4 +108,7 @@ export {
   OUTBOX_POLL_INTERVAL_MS,
   OUTBOX_BATCH_SIZE,
   OUTBOX_MAX_ATTEMPTS,
+
+  AUTH0_ISSUER,
+  AUTH0_AUDIENCE,
 };

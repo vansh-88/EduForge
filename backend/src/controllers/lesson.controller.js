@@ -2,9 +2,6 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { requestLessonGeneration } from '../services/lesson/lesson.service.js';
 
-function getAuthenticatedUserId(req) {
-  return req.auth?.payload?.sub || req.user?.sub || req.user?.id || null;
-}
 
 function hashRequest(body) {
   return crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
@@ -12,10 +9,7 @@ function hashRequest(body) {
 
 
 export const generateLesson = async (req, res) => {
-  const userId = getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
+  const userId = req.user._id;
 
   const { courseId, lessonId } = req.params;
 

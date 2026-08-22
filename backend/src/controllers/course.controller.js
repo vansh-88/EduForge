@@ -5,21 +5,13 @@ import { Course, Module } from '../models/index.js';
 import mongoose from 'mongoose';
 
 
-function getAuthenticatedUserId(req) {
-  return req.auth?.payload?.sub || req.user?.sub || req.user?.id || null;
-}
-
-
 function hashRequest(body) {
   return crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
 }
 
 
 export const generateCourse = async (req, res) => {
-  const userId = getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
+  const userId = req.user._id;
 
   const idempotencyKey = req.get('Idempotency-Key');
   if (!idempotencyKey) {
@@ -50,14 +42,7 @@ export const generateCourse = async (req, res) => {
 export const listCourses = async (req, res) => {
 
 
-  const userId = getAuthenticatedUserId(req);
-
-  if (!userId) { 
-    return res.status(401).json({ 
-      success: false, 
-      error: 'Unauthorized: User not found' 
-    }); 
-  }
+  const userId = req.user._id;
 
   let { page = '1', limit = '10', query, title, status, tags } = req.query;
 
@@ -144,14 +129,7 @@ export const listCourses = async (req, res) => {
 
 
 export const getCourseById = async (req, res) => {
-  const userId = getAuthenticatedUserId(req);
-
-  if (!userId) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized: User not found',
-    });
-  }
+  const userId = req.user._id;
 
   const { courseId } = req.params;
 
@@ -196,14 +174,7 @@ export const getCourseById = async (req, res) => {
 
 export const getModuleById = async (req, res) => {
 
-  const userId = getAuthenticatedUserId(req);
-
-  if (!userId) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized: User not found',
-    });
-  }
+  const userId = req.user._id;
 
   const { courseId, moduleId } = req.params;
 
@@ -222,7 +193,7 @@ export const getModuleById = async (req, res) => {
     .populate({ path: 'lessons', select: 'title order status objectives' })
     .lean();
 
-  if (!module || module.course.creator !== userId) {
+  if (!module || !module.course.creator.equals(userId)) {
     return res.status(404).json({
       success: false,
       error: 'Module not found',
@@ -248,10 +219,7 @@ export const getModuleById = async (req, res) => {
 
 export const retryCourseGeneration = async (req, res) => {
 
-  const userId = getAuthenticatedUserId(req);
-  if (!userId) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
+  const userId = req.user._id;
 
   const { courseId } = req.params;
 

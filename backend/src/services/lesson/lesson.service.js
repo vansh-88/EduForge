@@ -27,7 +27,7 @@ export async function requestLessonGeneration({ userId, courseId, lessonId, idem
     !lesson.module || 
     !lesson.module.course || 
     lesson.module.course._id.toString() !== courseId || 
-    lesson.module.course.creator.toString() !== userId
+    !lesson.module.course.creator.equals(userId)
   ) {
     throw ApiError.notFound('Lesson not found', { code: 'NOT_FOUND' });
   }

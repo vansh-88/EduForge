@@ -26,8 +26,9 @@ const courseSchema = new mongoose.Schema(
       default: [],
     },
     creator: {
-      type: String,
-      required: true, // Auth0 sub
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
     },
     tags: {
       type: [String],
