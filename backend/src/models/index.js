@@ -4,3 +4,4 @@ export { Module } from './module.model.js';
 export { Lesson } from './lesson.model.js';
 export { OutboxEvent } from './outboxEvent.model.js';
 export { IdempotencyKey } from './idempotencyKey.model.js';
+export { CourseProgress } from './courseProgress.model.js';

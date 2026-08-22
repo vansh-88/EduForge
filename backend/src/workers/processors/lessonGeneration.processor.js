@@ -14,6 +14,7 @@ async function persistGeneratedLesson(session, { lessonId, aiResponse }) {
   }
 
   currentLesson.content = aiResponse.content;
+  currentLesson.completedAt = new Date();
   currentLesson.status = 'READY';
   currentLesson.lastError = null;
   await currentLesson.save({ session });
@@ -73,6 +74,7 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
         $set: {
           status: isFinalAttempt ? 'FAILED' : 'GENERATING',
           lastError: `Attempt ${currentAttempt}/${maxAttempts} failed: ${error.message}`,
+          completedAt: null,
         },
       }
     );

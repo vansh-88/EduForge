@@ -39,6 +39,10 @@ const lessonSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
     attempts: {
       type: Number,
       default: 0,

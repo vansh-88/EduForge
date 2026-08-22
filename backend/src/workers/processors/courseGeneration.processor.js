@@ -59,8 +59,15 @@ async function persistGeneratedCourse(session, { courseId, userId, aiResponse })
     currentCourse.modules.push(moduleDoc._id);
   }
 
+  currentCourse.moduleCount = currentCourse.modules.length;
+  currentCourse.lessonCount = aiResponse.modules.reduce(
+    (total, module) => total + module.lessons.length,
+    0
+  );
+  currentCourse.completedAt = new Date();
   currentCourse.status = 'READY';
   await currentCourse.save({ session });
+  
 }
 
 
@@ -74,7 +81,6 @@ async function persistGeneratedCourse(session, { courseId, userId, aiResponse })
  */
 
 export async function runAiCourseGeneration({ courseId, userId, topic, job, generationId }) {
-  
   // 1. ATOMIC CLAIM: Only one worker can flip from 'GENERATING' to 'PROCESSING'
   const claimedCourse = await Course.findOneAndUpdate(
     {
@@ -138,6 +144,7 @@ export async function runAiCourseGeneration({ courseId, userId, topic, job, gene
         $set: {
           status: isFinalAttempt ? 'FAILED' : 'GENERATING',
           lastError: `Attempt ${currentAttempt}/${maxAttempts} failed: ${error.message}`,
+          completedAt: null,
         },
       }
     );

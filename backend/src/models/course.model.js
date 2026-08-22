@@ -58,6 +58,25 @@ const courseSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    difficulty: {
+      type: String,
+      enum: ['beginner', 'intermediate', 'advanced'],
+      default: 'beginner',
+      required: true,
+    },
+    moduleCount: {
+      type: Number,
+      default: 0,
+    },
+    lessonCount: {
+      type: Number,
+      default: 0,
+    },
+    
   },
   { timestamps: true }
 );
