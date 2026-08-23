@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration, retryCourseGeneration as retryCourseGenerationService } from '../services/course/course.service.js';
-import { Course, Module } from '../models/index.js';
+import { Course } from '../models/index.js';
 import mongoose from 'mongoose';
+import { computeProgress, getOrCreateProgress } from '../services/progress/progress.service.js';
 
 
 function hashRequest(body) {
@@ -130,89 +131,42 @@ export const listCourses = async (req, res) => {
 
 export const getCourseById = async (req, res) => {
   const userId = req.user._id;
-
   const { courseId } = req.params;
 
-  // Validate MongoDB ObjectId before querying
   if (!mongoose.Types.ObjectId.isValid(courseId)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid course ID',
-    });
+    return res.status(400).json({ success: false, error: 'Invalid course ID' });
   }
 
-  const course = await Course.findOne({
-    _id: courseId,
-    creator: userId,
-  })
+  const course = await Course.findOne({ _id: courseId, creator: userId })
     .populate({
       path: 'modules',
       select: 'title goal order',
+      populate: {
+        path: 'lessons',
+        select: 'title order status objectives attempts maxAttempts stage progress',
+      },
     })
     .lean();
 
   if (!course) {
-    return res.status(404).json({
-      success: false,
-      error: 'Course not found',
-    });
+    return res.status(404).json({ success: false, error: 'Course not found' });
   }
 
-  // Ensure modules are always returned in their intended order.
   if (Array.isArray(course.modules)) {
     course.modules.sort((a, b) => a.order - b.order);
+    for (const module of course.modules) {
+      if (Array.isArray(module.lessons)) {
+        module.lessons.sort((a, b) => a.order - b.order);
+      }
+    }
   }
+
+  const progress = await getOrCreateProgress(userId, courseId);
+  const progressSummary = computeProgress(course, progress);
 
   return res.status(200).json({
     success: true,
-    data: {
-      course,
-    },
-  });
-};
-
-
-export const getModuleById = async (req, res) => {
-
-  const userId = req.user._id;
-
-  const { courseId, moduleId } = req.params;
-
-  if (!mongoose.Types.ObjectId.isValid(courseId) || !mongoose.Types.ObjectId.isValid(moduleId)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid course or module ID',
-    });
-  }
-
-  const module = await Module.findOne({
-    _id: moduleId,
-    course: courseId,
-  })
-    .populate({ path: 'course', select: 'creator' })
-    .populate({ path: 'lessons', select: 'title order status objectives' })
-    .lean();
-
-  if (!module || !module.course.creator.equals(userId)) {
-    return res.status(404).json({
-      success: false,
-      error: 'Module not found',
-    });
-  }
-
-  // Ensure lessons are always returned in their intended order.
-  if (Array.isArray(module.lessons)) {
-    module.lessons.sort((a, b) => a.order - b.order);
-  }
-
-  // course was only needed for the ownership check above — don't leak it in the response.
-  delete module.course;
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      module,
-    },
+    data: { course, progress: progressSummary },
   });
 };
 

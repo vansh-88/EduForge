@@ -152,7 +152,7 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
       const updated = await Course.findOneAndUpdate(
         { _id: courseId, status: 'FAILED' },
         {
-          $set: { status: 'GENERATING', lastError: null, startedAt: new Date() },
+          $set: { status: 'GENERATING', lastError: null, startedAt: new Date(), completedAt: null },
           $inc: { attempts: 1 },
         },
         { session, returnDocument: 'after' }

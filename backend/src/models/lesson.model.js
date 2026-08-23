@@ -22,7 +22,7 @@ const lessonSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'GENERATING','PROCESSING', 'READY', 'FAILED'],
+      enum: ['PENDING', 'GENERATING','PROCESSING', 'READY', 'FAILED', 'RETRYING'],
       default: 'PENDING',
       required: true,
     },
@@ -44,6 +44,19 @@ const lessonSchema = new mongoose.Schema(
       default: null,
     },
     attempts: {
+      type: Number,
+      default: 0,
+    },
+    maxAttempts: {
+      type: Number,
+      default: null,
+    },
+    stage: {
+      type: String,
+      enum: ['queued', 'preparing_context', 'generating_content', 'validating_content', 'saving', 'completed'],
+      default: null,
+    },
+    progress: {
       type: Number,
       default: 0,
     },
