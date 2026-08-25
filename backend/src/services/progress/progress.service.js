@@ -36,7 +36,7 @@ export async function getOrCreateProgress(userId, courseId) {
     return await CourseProgress.findOneAndUpdate(
       { user: userId, course: courseId },
       { $setOnInsert: { user: userId, course: courseId } },
-      { upsert: true, new: true }
+      { upsert: true,  returnDocument: 'after' }
     );
   } catch (error) {
     // Same upsert race as attachUser: concurrent first-requests, one wins.
@@ -49,7 +49,7 @@ export async function markLessonComplete({ userId, course, lessonId }) {
   let progress = await CourseProgress.findOneAndUpdate(
     { user: userId, course: course._id },
     { $addToSet: { completedLessons: lessonId } },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 
   const summary = computeProgress(course, progress);
@@ -61,7 +61,7 @@ export async function markLessonComplete({ userId, course, lessonId }) {
       (await CourseProgress.findOneAndUpdate(
         { _id: progress._id, completedAt: null },
         { $set: { completedAt: new Date() } },
-        { new: true }
+        { returnDocument: 'after' }
       )) ?? progress;
   }
 
