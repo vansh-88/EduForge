@@ -3,7 +3,8 @@ import mongoose from 'mongoose';
 import { requestLessonGeneration, loadAuthorizedLesson, ensureNextLessonGenerated } from '../services/lesson/lesson.service.js';
 import { Lesson, Module } from '../models/index.js';
 import { toLessonDTO } from '../serializers/lesson.serializer.js';
-import { getOrCreateProgress, touchLastVisited } from '../services/progress/progress.service.js';
+import { getOrCreateProgress, touchLastVisited, markLessonComplete } from '../services/progress/progress.service.js';
+import { submitAnswer, buildQuizState, getAttempt } from '../services/quiz/quiz.service.js';
 
 
 function hashRequest(body) {
@@ -95,10 +96,11 @@ export const getLesson = async (req, res) => {
   const { module } = lesson;
   const { course } = module;
 
-  const [previous, next, progress] = await Promise.all([
+  const [previous, next, progress, attempt] = await Promise.all([
     findAdjacentLesson(lesson, module, course, -1),
     findAdjacentLesson(lesson, module, course, 1),
     getOrCreateProgress(userId, courseId),
+    getAttempt(userId, lesson._id),
   ]);
 
   // Read-position tracking must never fail the request it rides along with.
@@ -120,7 +122,68 @@ export const getLesson = async (req, res) => {
     success: true,
     data: {
       lesson: toLessonDTO(lesson, { completed }),
+      quiz: buildQuizState(lesson, attempt),
       navigation: { previous, next },
     },
+  });
+};
+
+
+export const submitLessonAnswer = async (req, res) => {
+  const userId = req.user._id;
+  const { courseId, moduleId, lessonId, questionId } = req.params;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(courseId) ||
+    !mongoose.Types.ObjectId.isValid(moduleId) ||
+    !mongoose.Types.ObjectId.isValid(lessonId)
+  ) {
+    return res.status(400).json({ success: false, error: 'Invalid course, module, or lesson ID' });
+  }
+
+  // `selected` already validated by the middleware.
+  const { selected } = req.validated.body;
+
+  const lesson = await loadAuthorizedLesson({ userId, courseId, moduleId, lessonId });
+
+  const result = await submitAnswer({ userId, courseId, lesson, questionId, selected });
+
+  return res.status(200).json({ success: true, data: result });
+};
+
+
+export const completeLesson = async (req, res) => {
+  const userId = req.user._id;
+  const { courseId, moduleId, lessonId } = req.params;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(courseId) ||
+    !mongoose.Types.ObjectId.isValid(moduleId) ||
+    !mongoose.Types.ObjectId.isValid(lessonId)
+  ) {
+    return res.status(400).json({ success: false, error: 'Invalid course, module, or lesson ID' });
+  }
+
+  const lesson = await loadAuthorizedLesson({ userId, courseId, moduleId, lessonId });
+
+  // Completing a lesson the user cannot have read would inflate their progress.
+  if (lesson.status !== 'READY') {
+    return res.status(400).json({
+      success: false,
+      error: 'Lesson content is not available yet',
+      code: 'LESSON_NOT_READY',
+    });
+  }
+
+  // Idempotent by construction: $addToSet, and completedAt is stamped exactly once.
+  const { summary } = await markLessonComplete({
+    userId,
+    course: lesson.module.course,
+    lessonId: lesson._id,
+  });
+
+  return res.status(200).json({
+    success: true,
+    data: { lessonId: String(lesson._id), completed: true, progress: summary },
   });
 };

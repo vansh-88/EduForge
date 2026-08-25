@@ -16,6 +16,21 @@ export const generateLessonRequestSchema = z.object({
 
 
 
+//--------------------------mcq input schema------------------------------
+// Body of a single MCQ answer submission. `selected` is 1-based to match
+export const submitAnswerSchema = z.object({
+  selected: z
+    .number({
+      required_error: 'selected is required',
+      invalid_type_error: 'selected must be a number',
+    })
+    .int('selected must be an integer')
+    .min(1, 'selected must be at least 1')
+    .max(4, 'selected must be at most 4'),
+});
+
+
+
 //----------------------------Building Blocks---------------------------------
 // 1. Heading Block
 export const headingBlockSchema = z.object({
