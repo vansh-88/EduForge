@@ -16,6 +16,11 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const AUTH0_ISSUER = process.env.AUTH0_ISSUER;
 const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
 
+// Single URL of the form cloudinary://<api_key>:<api_secret>@<cloud_name>. Parsed here
+// rather than left to the SDK's implicit env lookup, which reads process.env at import
+// time and would silently no-op if this module had not loaded dotenv first.
+const CLOUDINARY_URL = process.env.CLOUDINARY_URL;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +86,18 @@ if (!AUTH0_ISSUER || !AUTH0_AUDIENCE) {
   throw new Error('Missing required environment variables: AUTH0_ISSUER, or AUTH0_AUDIENCE');
 }
 
+if (!CLOUDINARY_URL) {
+  throw new Error('CLOUDINARY_URL is not defined');
+}
+
+const cloudinaryParts = /^cloudinary:\/\/([^:]+):([^@]+)@(.+)$/.exec(CLOUDINARY_URL.trim());
+
+if (!cloudinaryParts) {
+  throw new Error('CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>');
+}
+
+const [, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME] = cloudinaryParts;
+
 
 // express-oauth2-jwt-bearer requires the issuer base URL to end with a trailing slash.
 export const AUTH0_ISSUER_BASE_URL = AUTH0_ISSUER.endsWith('/') ? AUTH0_ISSUER : `${AUTH0_ISSUER}/`;
@@ -111,4 +128,8 @@ export {
 
   AUTH0_ISSUER,
   AUTH0_AUDIENCE,
+
+  CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET,
 };

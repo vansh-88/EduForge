@@ -4,14 +4,16 @@ import { streamCourseGenerationEvents } from '../controllers/courseEvents.contro
 import { validate} from '../middlewares/validate.middleware.js';
 import { generateCourseRequestSchema, listCoursesQuerySchema } from '../schemas/index.js';
 import { lessonRouter } from './lesson.routes.js';
+import { generationRateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 
 export const courseRouter = Router();
 
 courseRouter.use('/:courseId/modules/:moduleId/lessons', lessonRouter);
 
-courseRouter.post('/generate', validate(generateCourseRequestSchema), generateCourse);
-courseRouter.post('/:courseId/retry', retryCourseGeneration);
+// Both spend a real AI call, so both sit behind the per-user limiter.
+courseRouter.post('/generate', generationRateLimiter, validate(generateCourseRequestSchema), generateCourse);
+courseRouter.post('/:courseId/retry', generationRateLimiter, retryCourseGeneration);
 
 courseRouter.get('/', validate(listCoursesQuerySchema, 'query'), listCourses);
 courseRouter.get('/:courseId', getCourseById);

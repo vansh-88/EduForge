@@ -21,6 +21,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    // Set only for avatars we uploaded to Cloudinary. Null means the picture came from
+    // the Auth0 profile and is not ours to destroy.
+    picturePublicId: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

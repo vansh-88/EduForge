@@ -3,12 +3,14 @@ import { generateLesson, getLesson, submitLessonAnswer, completeLesson } from '.
 import { streamLessonGenerationEvents } from '../controllers/lessonEvents.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { submitAnswerSchema } from '../schemas/index.js';
+import { generationRateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 export const lessonRouter = Router({ mergeParams: true });
 
 
 lessonRouter.get('/:lessonId', getLesson);
-lessonRouter.post('/:lessonId', generateLesson);
+// Spends a real AI call, so it shares the per-user generation limiter.
+lessonRouter.post('/:lessonId', generationRateLimiter, generateLesson);
 
 lessonRouter.post('/:lessonId/questions/:questionId/answer', validate(submitAnswerSchema), submitLessonAnswer);
 lessonRouter.post('/:lessonId/complete', completeLesson);
