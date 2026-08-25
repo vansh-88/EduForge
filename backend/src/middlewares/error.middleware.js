@@ -2,7 +2,13 @@ import {NODE_ENV} from '../config/env.config.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export const errorHandler = (err, req, res, next) => {
-  
+
+  // 0. An error raised mid-response (an SSE stream is already writing) can no longer
+  // be turned into a JSON body. Hand it to Express, which destroys the connection.
+  if (res.headersSent) {
+    return next(err);
+  }
+
   // 1. Intercept custom API Errors first (Most specific)
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({

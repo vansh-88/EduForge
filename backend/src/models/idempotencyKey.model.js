@@ -44,4 +44,8 @@ const idempotencyKeySchema = new mongoose.Schema(
 
 idempotencyKeySchema.index( { userId: 1, key: 1 }, { unique: true } );
 
+// Replay protection only needs to outlive a client's own retries. Without an expiry
+// these accumulate forever and permanently reserve every key ever used.
+idempotencyKeySchema.index( { createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 } );
+
 export const IdempotencyKey = mongoose.model('IdempotencyKey', idempotencyKeySchema);

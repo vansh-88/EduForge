@@ -9,8 +9,9 @@ const CLAIM_NAMESPACE = 'https://eduforge.app';
 export const requireAuth = auth({
   issuerBaseURL: AUTH0_ISSUER_BASE_URL,
   audience: AUTH0_AUDIENCE,
-  tokenSigningAlg: 'RS256', // pinned to prevent algorithm-confusion attacks
+  tokenSigningAlg: 'RS256',
 });
+
 
 // 2. Just-in-time provisioning: map the Auth0 subject to a local User
 export const attachUser = async (req, res, next) => {
@@ -25,8 +26,7 @@ export const attachUser = async (req, res, next) => {
   const name = payload[`${CLAIM_NAMESPACE}/name`];
   const picture = payload[`${CLAIM_NAMESPACE}/picture`];
 
-  // A missing claim means the Post-Login Action isn't deployed or isn't in the
-  // flow — a server misconfiguration, not a malformed client request.
+  // A missing claim means the Post-Login Action isn't deployed or isn't in the flow — a server misconfiguration, not a malformed client request.
   if (!email) {
     throw new ApiError(500, 'Access token is missing the email claim', {
       code: 'AUTH0_CLAIMS_MISCONFIGURED',
@@ -40,8 +40,7 @@ export const attachUser = async (req, res, next) => {
       { upsert: true, returnDocument: 'after', runValidators: true }
     );
   } catch (error) {
-    // Two parallel first-requests for the same new user: one insert wins, the
-    // other trips the unique index. Re-read rather than failing the request.
+    // Two parallel first-requests for the same new user.
     if (error.code !== 11000) throw error;
     req.user = await User.findOne({ auth0Id });
   }

@@ -47,13 +47,17 @@ const lessonSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    generationId: {
+      type: String,
+      default: null,
+    },
     maxAttempts: {
       type: Number,
       default: null,
     },
     stage: {
       type: String,
-      enum: ['queued', 'preparing_context', 'generating_content', 'validating_content', 'saving', 'completed'],
+      enum: ['queued', 'preparing_context', 'generating_content', 'saving', 'completed'],
       default: null,
     },
     progress: {
