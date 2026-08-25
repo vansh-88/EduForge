@@ -5,7 +5,7 @@ import { generateStructured } from '../../services/ai/aiService.js';
 import { buildLessonPrompt } from '../../services/ai/prompts/lessonPrompt.js';
 import { buildLessonContext } from '../../services/ai/context/lessonContext.js';
 import crypto from 'node:crypto';
-import { publishLessonEvent } from '../../services/realtime/lessonEvents.publisher.js';
+import { publishGenerationEvent } from '../../services/realtime/generationEvents.js';
 import { ensureNextLessonGenerated } from '../../services/lesson/lesson.service.js';
 
 
@@ -16,7 +16,7 @@ async function setStageAndPublish(lessonId, state, { stage, progress, attempt, m
   state.progress = progress;
 
   await Lesson.updateOne({ _id: lessonId }, { $set: { stage, progress } });
-  await publishLessonEvent(lessonId, {
+  await publishGenerationEvent('lesson', lessonId, {
     type: 'lesson_generation_progress',
     status: 'generating',
     stage,
@@ -89,7 +89,7 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
 
   const state = { stage: 'preparing_context', progress: 10 };
 
-  await publishLessonEvent(lessonId, {
+  await publishGenerationEvent('lesson', lessonId, {
     type: currentAttempt === 1 ? 'lesson_generation_started' : 'lesson_generation_progress',
     status: 'generating',
     stage: state.stage,
@@ -125,7 +125,7 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
       return { lessonId, status: 'SKIPPED' };
     }
 
-    await publishLessonEvent(lessonId, {
+    await publishGenerationEvent('lesson', lessonId, {
       type: 'lesson_generation_completed',
       status: 'ready',
       stage: 'completed',
@@ -162,7 +162,7 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
       }
     );
 
-    await publishLessonEvent(lessonId, {
+    await publishGenerationEvent('lesson', lessonId, {
       type: isFinalAttempt ? 'lesson_generation_failed' : 'lesson_generation_retrying',
       status: isFinalAttempt ? 'failed' : 'retrying',
       stage: state.stage,

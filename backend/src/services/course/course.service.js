@@ -2,8 +2,24 @@ import mongoose from 'mongoose';
 import { Course, OutboxEvent, IdempotencyKey } from '../../models/index.js';
 import crypto from 'node:crypto';
 import { ApiError } from '../../utils/ApiError.js';
+import { QUEUE_ATTEMPTS } from '../../config/env.config.js';
+import { publishGenerationEvent } from '../realtime/generationEvents.js';
 
-export async function newCourseGeneration({ userId, topic, idempotencyKey, requestHash }) {
+
+//published the course as queued.
+async function publishQueued(courseId) {
+  await publishGenerationEvent('course', courseId, {
+    type: 'course_generation_queued',
+    status: 'GENERATING',
+    stage: 'queued',
+    progress: 0,
+    attempt: 0,
+    maxAttempts: QUEUE_ATTEMPTS,
+  });
+}
+
+
+export async function newCourseGeneration({ userId, topic, difficulty = 'beginner', idempotencyKey, requestHash }) {
   
   // 1. Fast Path: Check if this idempotency key was already used successfully
   const existing = await IdempotencyKey.findOne({ userId, key: idempotencyKey });
@@ -18,6 +34,7 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
   // 2. Start the atomic transaction
   const session = await mongoose.startSession();
   let responseBody;
+  let createdCourseId;
 
   try {
     await session.withTransaction(async () => {
@@ -26,10 +43,15 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
         [
           {
             query: topic,
+            difficulty,
             creator: userId,
             status: 'GENERATING',
             modules: [],
             startedAt: new Date(),
+            attempts: 0,
+            maxAttempts: QUEUE_ATTEMPTS,
+            stage: 'queued',
+            progress: 0,
           },
         ],
         { session }
@@ -59,10 +81,12 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
       );
 
       // 5. Save the Idempotency Key record to lock this request
+      createdCourseId = course._id.toString();
+
       responseBody = {
         success: true,
         message: 'Course generation started',
-        courseId: course._id.toString(),
+        courseId: createdCourseId,
         status: 'GENERATING',
       };
 
@@ -81,6 +105,8 @@ export async function newCourseGeneration({ userId, topic, idempotencyKey, reque
         { session }
       );
     });
+
+    await publishQueued(createdCourseId);
 
     return { isCached: false, statusCode: 202, data: responseBody };
 
@@ -132,7 +158,7 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
     };
   }
 
-  if (course.status === 'GENERATING' || course.status === 'PROCESSING') {
+  if (['GENERATING', 'PROCESSING', 'RETRYING'].includes(course.status)) {
     return {
       isCached: false,
       statusCode: 202,
@@ -152,8 +178,20 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
       const updated = await Course.findOneAndUpdate(
         { _id: courseId, status: 'FAILED' },
         {
-          $set: { status: 'GENERATING', lastError: null, startedAt: new Date(), completedAt: null },
-          $inc: { attempts: 1 },
+          // attempts is reset, not incremented: it means "attempt within the current
+          // generation cycle" and is written by the processor on each claim, matching
+          // the lesson pipeline.
+          $set: {
+            status: 'GENERATING',
+            lastError: null,
+            startedAt: new Date(),
+            completedAt: null,
+            attempts: 0,
+            maxAttempts: QUEUE_ATTEMPTS,
+            stage: 'queued',
+            progress: 0,
+            generationId: null,
+          },
         },
         { session, returnDocument: 'after' }
       );
@@ -190,11 +228,19 @@ export async function retryCourseGeneration({ userId, courseId, idempotencyKey, 
 
     if (!transitioned) {
       const current = await Course.findById(courseId);
+
+      // Deleted between the authorize read and the transaction.
+      if (!current) {
+        throw ApiError.notFound('Course not found', { code: 'NOT_FOUND' });
+      }
+
       if (current.status === 'READY') {
         return { isCached: false, statusCode: 200, data: { success: true, message: 'Course already generated', courseId, status: 'READY' } };
       }
       return { isCached: false, statusCode: 202, data: { success: true, message: 'Course generation already in progress', courseId, status: 'GENERATING' } };
     }
+
+    await publishQueued(courseId);
 
     return { isCached: false, statusCode: 202, data: responseBody };
 

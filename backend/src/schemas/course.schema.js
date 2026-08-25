@@ -10,8 +10,56 @@ export const generateCourseRequestSchema = z.object({
     .trim()
     .min(3, 'Topic must be at least 3 characters long')
     .max(300, 'Topic must not exceed 300 characters'),
+
+  difficulty: z
+    .enum(['beginner', 'intermediate', 'advanced'], {
+      invalid_type_error: 'difficulty must be beginner, intermediate, or advanced',
+    })
+    .default('beginner'),
 });
 
+
+//-------------query schema for listing/searching courses.-----------------
+export const listCoursesQuerySchema = z.object({
+  page: z
+      .coerce
+      .number()
+      .int('page must be an integer')
+      .min(1, 'page must be at least 1')
+      .default(1),
+
+  limit: z
+    .coerce
+    .number()
+    .int('limit must be an integer')
+    .min(1, 'limit must be at least 1')
+    .max(100, 'limit must not exceed 100')
+    .default(10),
+
+  search: z
+    .string()
+    .trim()
+    .max(100, 'search must not exceed 100 characters')
+    .optional(),
+
+  status: z
+  .enum(['GENERATING', 'PROCESSING', 'RETRYING', 'READY', 'FAILED'])
+  .optional(),
+
+  difficulty: z
+  .enum(['beginner', 'intermediate', 'advanced'])
+  .optional(),
+
+  tags: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) => {
+      if (value === undefined) return undefined;
+      const list = Array.isArray(value) ? value : String(value).split(',');
+      const cleaned = list.map((tag) => tag.trim()).filter(Boolean);
+      return cleaned.length > 0 ? cleaned : undefined;
+    }),
+});
 
 
 

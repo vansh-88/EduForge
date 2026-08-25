@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { Lesson, Module, OutboxEvent, IdempotencyKey } from '../../models/index.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { QUEUE_ATTEMPTS } from '../../config/env.config.js';
-import { publishLessonEvent } from '../realtime/lessonEvents.publisher.js';
+import { publishGenerationEvent } from '../realtime/generationEvents.js';
 
 
 
@@ -96,7 +96,7 @@ export async function ensureLessonGeneration(lessonId, { courseId, userId, sourc
 
     // Published only after the transaction commits, sse event to frontend for generation queued.
     if (result?.transitioned) {
-      await publishLessonEvent(lessonId, {
+      await publishGenerationEvent('lesson', lessonId, {
         type: 'lesson_generation_queued',
         status: 'GENERATING',
         stage: 'queued',

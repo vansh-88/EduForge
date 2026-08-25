@@ -4,7 +4,7 @@ import { workerConfig } from '../config/worker.config.js';
 import { runAiLessonGeneration } from './processors/lessonGeneration.processor.js';
 import { LESSON_QUEUE_NAME } from '../services/queue/lesson.queue.js';
 import { Lesson } from '../models/index.js';
-import { publishLessonEvent } from '../services/realtime/lessonEvents.publisher.js';
+import { publishGenerationEvent } from '../services/realtime/generationEvents.js';
 
 export const lessonWorker = new Worker(
   LESSON_QUEUE_NAME,
@@ -80,7 +80,7 @@ lessonWorker.on('failed', async (job, error) => {
 
     console.error(`[LessonWorker] 🚨 Released stranded lesson ${lessonId} to FAILED.`);
 
-    await publishLessonEvent(lessonId, {
+    await publishGenerationEvent('lesson', lessonId, {
       type: 'lesson_generation_failed',
       status: 'FAILED',
       stage: released.stage,

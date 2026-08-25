@@ -36,7 +36,7 @@ const courseSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['GENERATING', 'PROCESSING', 'READY', 'FAILED'],
+      enum: ['GENERATING', 'PROCESSING', 'RETRYING', 'READY', 'FAILED'],
       default: 'GENERATING',
       required: true,
     },
@@ -51,6 +51,25 @@ const courseSchema = new mongoose.Schema(
       default: null,
     },
     attempts: {
+      type: Number,
+      default: 0,
+    },
+    maxAttempts: {
+      type: Number,
+      default: null,
+    },
+    // Identifies the generation cycle that currently owns this course, so a
+    // re-delivered job can reclaim its own PROCESSING doc after a worker crash.
+    generationId: {
+      type: String,
+      default: null,
+    },
+    stage: {
+      type: String,
+      enum: ['queued', 'generating_outline', 'saving', 'completed'],
+      default: null,
+    },
+    progress: {
       type: Number,
       default: 0,
     },
@@ -83,5 +102,8 @@ const courseSchema = new mongoose.Schema(
 
 // Compound index to guarantee unique ordering per module
 courseSchema.index({ creator: 1,  createdAt: -1 });
+
+courseSchema.index({ creator: 1, status: 1, createdAt: -1 });
+courseSchema.index({ creator: 1, difficulty: 1, createdAt: -1 });
 
 export const Course = mongoose.model('Course', courseSchema);

@@ -1,4 +1,17 @@
-export function buildCoursePrompt(topic) {
+// What each difficulty actually means for the outline, so the level changes the
+// course rather than just labelling it.
+const DIFFICULTY_GUIDANCE = {
+  beginner:
+    'Assume no prior exposure to the topic. Start from first principles, define terminology on first use, and favour breadth of fundamentals over depth. Avoid advanced edge cases entirely.',
+  intermediate:
+    'Assume the learner knows the basics and can already use the topic for simple tasks. Focus on the mental models, common pitfalls, and practical application. Skip introductory definitions.',
+  advanced:
+    'Assume strong working familiarity. Focus on internals, trade-offs, performance, edge cases, and design decisions. Do not spend lessons on fundamentals or setup.',
+};
+
+export function buildCoursePrompt({ topic, difficulty = 'beginner' }) {
+  const guidance = DIFFICULTY_GUIDANCE[difficulty] ?? DIFFICULTY_GUIDANCE.beginner;
+
   return `
 You are an expert curriculum designer.
 Your task is to design a comprehensive, highly structured course outline for the following topic:
@@ -32,7 +45,12 @@ REQUIREMENTS & CONSTRAINTS:
    - Do not repeat the same concept across multiple lessons unless repetition is pedagogically necessary.
 
 Tone: Professional, educational, and encouraging.
-Target Audience: Beginners to intermediates seeking structured knowledge.
+
+Target Difficulty: ${difficulty}
+${guidance}
+Calibrate module scope, lesson granularity, and objective wording to this level. The
+same topic at a different difficulty must produce a materially different outline, not
+the same outline with reworded titles.
 
 Follow the JSON schema exactly. Ensure all length bounds and array limits are respected.
 `;
