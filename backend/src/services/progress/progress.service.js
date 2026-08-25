@@ -8,8 +8,10 @@ export function computeProgress(course, progress) {
   const totalLessons = course?.lessonCount ?? 0;
   const completedIds = progress?.completedLessons ?? [];
 
-  // A course retry rebuilds modules and lessons, orphaning IDs already in
-  // completedLessons. Clamp so percentage can never exceed 100.
+  // Defensive clamp only. Rebuilding a course's lessons underneath saved progress is
+  // no longer reachable: retry requires status FAILED, lessons are created in the same
+  // transaction that sets READY, and nothing moves a course back out of READY. Kept in
+  // case a future "regenerate" path reintroduces the possibility.
   const completedLessons = Math.min(completedIds.length, totalLessons);
 
   const percentage =
