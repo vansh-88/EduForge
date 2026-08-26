@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
+import { Root } from './Root';
 import { AppLayout } from '../components/layout/AppLayout';
 
 import { 
@@ -16,7 +17,7 @@ import {
 export const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Root />} />
 
       <Route element={<ProtectedRoute />}>
 

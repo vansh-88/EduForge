@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getToken } from './authToken';
 
 // Create the base instance
 const apiClient = axios.create({
@@ -8,14 +9,18 @@ const apiClient = axios.create({
 
 // Request Interceptor: Attach Auth Token
 apiClient.interceptors.request.use(
-  (config) => {
-    // Hardcoded fake token for the auth stub.
-    const token = 'dev-token';
-    
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    try {
+      const token = await getToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {
+      // No session yet — let the request go out without a token. Every caller
+      // of this client sits behind ProtectedRoute, so this only happens in the
+      // brief window before Auth0 finishes its initial load.
     }
-    
+
     return config;
   },
   (error) => {
