@@ -9,17 +9,24 @@
  * that is the state of a lesson whose enrichment jobs have not run yet, and the
  * reader should see the placeholder, not a hole.
  */
-function toVideoBlockDTO(block, slotsById) {
-  const slot = slotsById?.get(block.slotId);
-
+/**
+ * One slot's resolution state.
+ *
+ * Exported because two endpoints read it — the full lesson, and the slot-only
+ * poll the client uses to update a single block without refetching a lesson
+ * somebody is in the middle of reading. Both go through here so the block shape
+ * cannot drift between them.
+ *
+ * `search` never appears: the queries are generation inputs, of no use to a
+ * reader.
+ */
+export function toVideoSlotDTO(slot) {
   const dto = {
-    type: 'video',
-    slotId: block.slotId ?? null,
-    caption: block.caption ?? null,
-    status: slot?.status ?? 'PENDING',
+    slotId: slot.slotId,
+    status: slot.status,
   };
 
-  if (slot?.status === 'READY' && slot.video?.videoId) {
+  if (slot.status === 'READY' && slot.video?.videoId) {
     dto.video = {
       provider: slot.video.provider,
       videoId: slot.video.videoId,
@@ -31,6 +38,35 @@ function toVideoBlockDTO(block, slotsById) {
   }
 
   return dto;
+}
+
+/**
+ * A content block with its slot's state merged in.
+ *
+ * A block with no matching slot row is reported PENDING rather than dropped:
+ * that is the state of a lesson whose enrichment jobs have not run yet, and the
+ * reader should see the placeholder, not a hole.
+ */
+function toVideoBlockDTO(block, slotsById) {
+  const slot = slotsById?.get(block.slotId);
+
+  return {
+    type: 'video',
+    caption: block.caption ?? null,
+    ...(slot
+      ? toVideoSlotDTO(slot)
+      : { slotId: block.slotId ?? null, status: 'PENDING' }),
+  };
+}
+
+/** Counts for the client's "is anything still coming?" check. */
+export function toEnrichmentDTO(videoSlots = []) {
+  return {
+    pending: videoSlots.filter(
+      (slot) => slot.status === 'PENDING' || slot.status === 'RESOLVING'
+    ).length,
+    total: videoSlots.length,
+  };
 }
 
 /**
@@ -73,11 +109,6 @@ export function toLessonDTO(lesson, { completed = false, videoSlots = [] } = {})
     },
     // Lets the client know whether to expect further video updates on the SSE
     // stream without having to scan the content array itself.
-    enrichment: {
-      pending: (videoSlots ?? []).filter((slot) =>
-        slot.status === 'PENDING' || slot.status === 'RESOLVING'
-      ).length,
-      total: (videoSlots ?? []).length,
-    },
+    enrichment: toEnrichmentDTO(videoSlots),
   };
 }

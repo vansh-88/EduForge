@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateLesson, getLesson, submitLessonAnswer, completeLesson } from '../controllers/lesson.controller.js';
+import { generateLesson, getLesson, getLessonVideoSlots, submitLessonAnswer, completeLesson } from '../controllers/lesson.controller.js';
 import { streamLessonGenerationEvents } from '../controllers/lessonEvents.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { submitAnswerSchema } from '../schemas/index.js';
@@ -14,6 +14,11 @@ lessonRouter.post('/:lessonId', generationRateLimiter, generateLesson);
 
 lessonRouter.post('/:lessonId/questions/:questionId/answer', validate(submitAnswerSchema), submitLessonAnswer);
 lessonRouter.post('/:lessonId/complete', completeLesson);
+
+// Slot state only. Lets a resolving video update its own block without
+// refetching the lesson under a reader — and, unlike GET /:lessonId, triggers
+// no lookahead generation or failed-slot retry as a side effect.
+lessonRouter.get('/:lessonId/video-slots', getLessonVideoSlots);
 
 // Authenticated by the requireAuth/attachUser pair on the parent /v1/courses mount.
 // The Authorization header is the only accepted credential, so the client must use a fetch-based SSE library rather than the browser's native EventSource.

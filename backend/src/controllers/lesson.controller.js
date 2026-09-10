@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { requestLessonGeneration, loadAuthorizedLesson, ensureNextLessonGenerated } from '../services/lesson/lesson.service.js';
 import { Lesson, Module, VideoSlot } from '../models/index.js';
-import { toLessonDTO } from '../serializers/lesson.serializer.js';
+import { toLessonDTO, toVideoSlotDTO, toEnrichmentDTO } from '../serializers/lesson.serializer.js';
 import { getOrCreateProgress, touchLastVisited, markLessonComplete } from '../services/progress/progress.service.js';
 import { submitAnswer, buildQuizState, getAttempt } from '../services/quiz/quiz.service.js';
 import { retryFailedSlots } from '../services/video/videoSlot.service.js';
@@ -198,5 +198,41 @@ export const completeLesson = async (req, res) => {
   return res.status(200).json({
     success: true,
     data: { lessonId: String(lesson._id), completed: true, progress: summary },
+  });
+};
+
+
+/**
+ * Just this lesson's video slots.
+ *
+ * Exists so a resolving video can update its own block without refetching the
+ * lesson underneath a reader. Deliberately NOT getLesson: that route fires
+ * ensureNextLessonGenerated and retryFailedSlots as side effects, and a read
+ * whose only job is to refresh one block should not be able to trigger an AI
+ * generation — quite apart from re-running them once per video event.
+ */
+export const getLessonVideoSlots = async (req, res) => {
+  const userId = req.user._id;
+  const { courseId, moduleId, lessonId } = req.params;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(courseId) ||
+    !mongoose.Types.ObjectId.isValid(moduleId) ||
+    !mongoose.Types.ObjectId.isValid(lessonId)
+  ) {
+    return res.status(400).json({ success: false, error: 'Invalid course, module, or lesson ID' });
+  }
+
+  // Same ownership walk as every other lesson route; 404s on a mismatch.
+  await loadAuthorizedLesson({ userId, courseId, moduleId, lessonId });
+
+  const videoSlots = await VideoSlot.find({ lesson: lessonId }).sort({ order: 1 }).lean();
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      slots: videoSlots.map(toVideoSlotDTO),
+      enrichment: toEnrichmentDTO(videoSlots),
+    },
   });
 };
