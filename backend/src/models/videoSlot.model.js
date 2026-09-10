@@ -90,6 +90,18 @@ const videoSlotSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+
+    // How many times this slot has been revived AFTER exhausting its attempts.
+    //
+    // Distinct from `attempts`, which counts tries within one resolution run and
+    // resets each time. A round is a whole run, retried much later: attempts
+    // absorb a flaky request, rounds absorb an outage — a revoked key, a quota
+    // wall, an API down for an afternoon. Without this a slot that failed during
+    // any such window would stay blank forever, since FAILED is terminal.
+    retryRound: {
+      type: Number,
+      default: 0,
+    },
     resolvedAt: {
       type: Date,
       default: null,

@@ -73,6 +73,12 @@ const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || null;
 const VIDEO_WORKER_CONCURRENCY = Number(process.env.VIDEO_WORKER_CONCURRENCY || 2);
 const VIDEO_JOB_ATTEMPTS = Number(process.env.VIDEO_JOB_ATTEMPTS || 3);
 
+// A FAILED slot is revived at most this many times, and never sooner than the
+// cooldown. Both bound the cost: a permanently unresolvable query must not
+// re-spend 100 quota units every time somebody opens the lesson.
+const VIDEO_RETRY_MAX_ROUNDS = Number(process.env.VIDEO_RETRY_MAX_ROUNDS || 2);
+const VIDEO_RETRY_COOLDOWN_MS = Number(process.env.VIDEO_RETRY_COOLDOWN_MS || 6 * 60 * 60 * 1000);
+
 // search.list costs 100 units against a 10,000/day default quota — roughly 100
 // searches per day for the whole application. The reserve keeps a slice back so
 // that exhausting the quota on enrichment can never starve anything added later.
@@ -161,6 +167,8 @@ export {
   YOUTUBE_API_KEY,
   VIDEO_WORKER_CONCURRENCY,
   VIDEO_JOB_ATTEMPTS,
+  VIDEO_RETRY_MAX_ROUNDS,
+  VIDEO_RETRY_COOLDOWN_MS,
   YOUTUBE_DAILY_QUOTA_UNITS,
   YOUTUBE_QUOTA_RESERVE,
   YOUTUBE_CACHE_TTL_DAYS,

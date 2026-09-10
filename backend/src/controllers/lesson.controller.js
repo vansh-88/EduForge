@@ -5,6 +5,7 @@ import { Lesson, Module, VideoSlot } from '../models/index.js';
 import { toLessonDTO } from '../serializers/lesson.serializer.js';
 import { getOrCreateProgress, touchLastVisited, markLessonComplete } from '../services/progress/progress.service.js';
 import { submitAnswer, buildQuizState, getAttempt } from '../services/quiz/quiz.service.js';
+import { retryFailedSlots } from '../services/video/videoSlot.service.js';
 
 
 function hashRequest(body) {
@@ -116,6 +117,15 @@ export const getLesson = async (req, res) => {
   if (lesson.status === 'READY') {
     ensureNextLessonGenerated(lesson._id).catch((err) => {
       console.error(`[Lookahead] failed for lesson ${lessonId}:`, err.message);
+    });
+
+    // Give slots that failed during an outage another go, subject to a cooldown
+    // and a round cap. Fire-and-forget for the same reason as the lookahead: an
+    // enrichment retry must never fail the read it rides along with. Any slot
+    // revived here is reported in `enrichment.pending` below, so the client
+    // reopens its stream and sees the video arrive without a reload.
+    retryFailedSlots(lesson._id).catch((err) => {
+      console.error(`[VideoRetry] failed for lesson ${lessonId}:`, err.message);
     });
   }
 
