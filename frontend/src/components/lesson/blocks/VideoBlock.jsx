@@ -1,37 +1,70 @@
+import { Spinner } from '../../common';
+
 /**
- * A video slot that has no video yet.
+ * A video slot, in whatever state resolution has reached.
  *
- * The generator emits `{ query, caption }` — a search phrase, not a URL — and
- * nothing resolves it to an actual video until the YouTube phase. So this
- * renders the placeholder rather than pretending: the reader sees what the
- * lesson intends to show them, and when resolution lands only the inside of
- * this frame changes, leaving the page's rhythm intact.
+ * The generator emits search intent, not a URL, and a separate worker resolves
+ * it after the lesson is already readable. So this block is genuinely a state
+ * machine rather than an embed:
  *
- * Note that the current lesson prompt lists `video` as an allowed block type
- * but never asks for one, so in practice these are rare until that prompt is
- * updated alongside the YouTube work.
+ *   PENDING/RESOLVING → a placeholder, sized like the eventual player so the
+ *                       page does not jump when the video arrives
+ *   READY             → the embed
+ *   UNAVAILABLE/FAILED→ nothing at all
+ *
+ * Rendering nothing on failure is deliberate. A video is an optional aid; an
+ * apology for a missing one is worse than its absence, and would draw attention
+ * to a gap the reader would otherwise never notice.
  */
-export const VideoBlock = ({ block }) => (
-  <figure className="my-6">
-    <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-6 text-center">
-      <svg
-        className="h-10 w-10 text-gray-300"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm6 4.5v7l6-3.5-6-3.5z" />
-      </svg>
+export const VideoBlock = ({ block }) => {
+  const { status, video, caption } = block;
 
-      <p className="text-sm font-medium text-gray-500">Video coming soon</p>
+  if (status === 'UNAVAILABLE' || status === 'FAILED') return null;
 
-      <p className="max-w-md text-xs text-gray-400">
-        Suggested clip: “{block.query}”
-      </p>
-    </div>
+  if (status === 'READY' && video?.videoId) {
+    return (
+      <figure className="my-6">
+        <div className="aspect-video w-full overflow-hidden rounded-lg bg-gray-900">
+          <iframe
+            // nocookie so a lesson page does not set advertising cookies on a
+            // reader who never pressed play.
+            src={`https://www.youtube-nocookie.com/embed/${video.videoId}?rel=0`}
+            title={video.title || caption || 'Lesson video'}
+            className="h-full w-full"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+          />
+        </div>
 
-    {block.caption && (
-      <figcaption className="mt-2 text-xs text-gray-500">{block.caption}</figcaption>
-    )}
-  </figure>
-);
+        <figcaption className="mt-2 text-xs text-gray-500">
+          {caption && <span className="block text-gray-600">{caption}</span>}
+          {video.title && (
+            <span className="block">
+              {video.title}
+              {video.channelTitle && ` · ${video.channelTitle}`}
+            </span>
+          )}
+        </figcaption>
+      </figure>
+    );
+  }
+
+  // Still resolving. Occupies the same box the player will, so the surrounding
+  // text does not reflow when it resolves.
+  return (
+    <figure className="my-6">
+      <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-6 text-center">
+        <Spinner size="sm" className="text-gray-400" />
+        <p className="text-sm font-medium text-gray-500">Finding a relevant video…</p>
+        <p className="text-xs text-gray-400">
+          The lesson is ready to read — this will appear on its own.
+        </p>
+      </div>
+
+      {caption && (
+        <figcaption className="mt-2 text-xs text-gray-500">{caption}</figcaption>
+      )}
+    </figure>
+  );
+};

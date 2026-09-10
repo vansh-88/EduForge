@@ -142,8 +142,12 @@ const COURSE_TERMINAL = [
   'course_deleted',
 ];
 
+// Note what is absent: 'lesson_generation_completed'. Content becoming readable
+// no longer ends the stream, because video slots resolve afterwards and publish
+// onto the same channel. 'lesson_enrichment_completed' — sent once the last slot
+// settles, or immediately when a lesson has none — is what closes it.
 const LESSON_TERMINAL = [
-  'lesson_generation_completed',
+  'lesson_enrichment_completed',
   'lesson_generation_failed',
   'course_deleted',
 ];

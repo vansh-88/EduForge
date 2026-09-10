@@ -96,10 +96,26 @@ export const useLesson = ({ courseId, moduleId, lessonId, onDeleted }) => {
     [refetch, onDeleted]
   );
 
+  // Video slots settle after the content is already readable, and each one is a
+  // change to the lesson. The event only says *that* something changed; the
+  // refetch is what learns what it changed to, keeping MongoDB authoritative.
+  const onEvent = useCallback(
+    (event) => {
+      if (event.type?.startsWith('video_slot_')) refetch();
+    },
+    [refetch]
+  );
+
+  // Enrichment outlives generation: a READY lesson whose video slots are still
+  // resolving must keep its stream open, or the updates it is waiting for are
+  // published to nobody.
+  const pendingEnrichment = data?.lesson?.enrichment?.pending ?? 0;
+
   const generation = useGenerationStream({
-    enabled: WATCHABLE.has(status),
+    enabled: WATCHABLE.has(status) || (status === 'READY' && pendingEnrichment > 0),
     streamKey: lessonId,
     subscribe,
+    onEvent,
     onTerminal,
   });
 

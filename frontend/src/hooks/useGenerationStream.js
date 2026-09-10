@@ -27,6 +27,8 @@ const IDLE = {
  *   enabled    open the stream only while the resource is actually generating
  *   streamKey  identifies *which* resource; changing it tears down and reopens
  *   subscribe  (handlers) => abortFn — one of the streamers from api/stream.js
+ *   onEvent    every event, as it arrives; use this for updates that are not the
+ *              aggregate's own lifecycle
  *   onTerminal fired once, with the event the server closes on
  *   onFatal    fired when the stream stopped for good (401/403/404)
  *
@@ -39,6 +41,7 @@ export const useGenerationStream = ({
   enabled,
   streamKey,
   subscribe,
+  onEvent,
   onTerminal,
   onFatal,
 }) => {
@@ -55,9 +58,9 @@ export const useGenerationStream = ({
   // Callbacks live in refs so a page passing inline arrows can't retrigger the
   // subscription. Updated in their own effect, declared before the one below so
   // they are current by the time it subscribes.
-  const refs = useRef({ subscribe, onTerminal, onFatal });
+  const refs = useRef({ subscribe, onEvent, onTerminal, onFatal });
   useEffect(() => {
-    refs.current = { subscribe, onTerminal, onFatal };
+    refs.current = { subscribe, onEvent, onTerminal, onFatal };
   });
 
   useEffect(() => {
@@ -100,6 +103,13 @@ export const useGenerationStream = ({
         // would hold a finished progress bar forever, waiting for an event that
         // already happened.
         if (TERMINAL_STATUSES.has(event.status)) fireTerminal(event);
+
+        // Raised AFTER the terminal check so a caller reacting to an event
+        // cannot be surprised by ordering. This is how a page learns about
+        // events that are not the aggregate's own lifecycle — a video slot
+        // settling, say — which onTerminal cannot deliver because it fires
+        // exactly once and is already spent by the time they arrive.
+        refs.current.onEvent?.(event);
       },
 
       onTerminal: (event) => {
