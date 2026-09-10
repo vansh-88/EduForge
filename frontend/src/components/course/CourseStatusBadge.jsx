@@ -7,15 +7,15 @@ export const CourseStatusBadge = ({ status }) => {
 
   if (IN_FLIGHT.includes(status)) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
-        <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary-text ring-1 ring-inset ring-primary">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
         Generating
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">
+    <span className="inline-flex items-center rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger-text ring-1 ring-inset ring-danger">
       Failed
     </span>
   );

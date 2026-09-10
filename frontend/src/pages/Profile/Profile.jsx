@@ -72,7 +72,7 @@ const NameForm = ({ user, onSave, isSaving }) => {
           Save
         </Button>
 
-        {saved && !isDirty && <span className="text-sm text-green-700">Saved</span>}
+        {saved && !isDirty && <span className="text-sm text-success-text">Saved</span>}
       </div>
     </form>
   );
@@ -103,7 +103,7 @@ export default function Profile() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
-        <Spinner size="lg" className="text-blue-600" />
+        <Spinner size="lg" className="text-primary-text" />
       </div>
     );
   }
@@ -122,9 +122,9 @@ export default function Profile() {
 
   return (
     <div className="mx-auto mt-8 max-w-3xl pb-16">
-      <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
+      <h1 className="text-2xl font-bold text-ink">Profile</h1>
 
-      <section className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
+      <section className="mt-6 rounded-lg border border-line bg-surface p-5">
         <AvatarUploader
           user={user}
           onUpload={changeAvatar}
@@ -134,17 +134,17 @@ export default function Profile() {
 
         <NameForm user={user} onSave={saveName} isSaving={isSaving} />
 
-        <div className="mt-6 border-t border-gray-100 pt-4">
-          <p className="text-sm text-gray-500">Email</p>
+        <div className="mt-6 border-t border-line pt-4">
+          <p className="text-sm text-muted">Email</p>
           {/* Not editable: it comes from the identity provider, and changing it
               here would silently disagree with the account you sign in as. */}
-          <p className="text-sm text-gray-900">{user.email}</p>
-          <p className="mt-1 text-xs text-gray-400">Managed by your sign-in provider</p>
+          <p className="text-sm text-ink">{user.email}</p>
+          <p className="mt-1 text-xs text-faint">Managed by your sign-in provider</p>
         </div>
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Your learning</h2>
+        <h2 className="mb-3 text-sm font-semibold text-ink">Your learning</h2>
         <CourseStats stats={stats} />
       </section>
 

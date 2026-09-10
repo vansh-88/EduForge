@@ -7,10 +7,10 @@ export const ErrorState = ({
   className = ''
 }) => {
   return (
-    <div className={`bg-red-50 border border-red-200 rounded-lg p-6 text-center ${className}`}>
-      <h3 className="text-sm font-semibold text-red-800">{title}</h3>
+    <div className={`bg-danger-soft border border-danger-line rounded-lg p-6 text-center ${className}`}>
+      <h3 className="text-sm font-semibold text-danger-strong">{title}</h3>
       {message && (
-        <p className="mt-2 text-sm text-red-600 mb-4">{message}</p>
+        <p className="mt-2 text-sm text-danger-text mb-4">{message}</p>
       )}
       {onRetry && (
         <Button variant="secondary" onClick={onRetry}>

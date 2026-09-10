@@ -3,7 +3,7 @@ import { CourseCard } from './CourseCard';
 import { EmptyState, ErrorState, Skeleton } from '../common';
 
 const CourseCardSkeleton = () => (
-  <div className="rounded-lg border border-gray-200 bg-white p-5">
+  <div className="rounded-lg border border-line bg-surface p-5">
     <Skeleton className="h-5 w-3/4" />
     <Skeleton className="mt-3 h-4 w-full" />
     <Skeleton className="mt-2 h-4 w-5/6" />

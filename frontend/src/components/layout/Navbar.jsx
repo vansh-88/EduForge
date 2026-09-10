@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { ThemeToggle } from '../common/ThemeToggle';
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
@@ -10,23 +11,23 @@ export const Navbar = () => {
   // Helper function to handle NavLink active styling
   const navLinkClass = ({ isActive }) =>
     isActive
-      ? 'text-blue-600 font-semibold border-b-2 border-blue-600 pb-1'
-      : 'text-gray-600 hover:text-blue-600 pb-1';
+      ? 'text-primary-text font-semibold border-b-2 border-primary pb-1'
+      : 'text-body hover:text-primary-text pb-1';
 
   const mobileNavLinkClass = ({ isActive }) =>
     isActive
-      ? 'block px-4 py-2 text-blue-600 font-semibold bg-blue-50'
-      : 'block px-4 py-2 text-gray-600 hover:bg-gray-100';
+      ? 'block px-4 py-2 text-primary-text font-semibold bg-primary-soft'
+      : 'block px-4 py-2 text-body hover:bg-subtle';
 
   return (
-    <nav className="bg-white shadow-md relative z-50">
+    <nav className="bg-surface shadow-md relative z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Left side: Logo & Desktop Links */}
           <div className="flex items-center">
             {/* Logo */}
             <Link to="/dashboard" className="shrink-0 flex items-center">
-              <span className="text-xl font-bold text-gray-900">EduForge</span>
+              <span className="text-xl font-bold text-ink">EduForge</span>
             </Link>
 
             {/* Desktop Nav Links */}
@@ -45,11 +46,17 @@ export const Navbar = () => {
 
           {/* Right side: Profile & Mobile Menu Button */}
           <div className="flex items-center">
+            {/* Theme control. Outside the profile dropdown deliberately — it is a
+                display preference people flip often, not an account setting. */}
+            <div className="hidden md:block">
+              <ThemeToggle />
+            </div>
+
             {/* Desktop Profile Dropdown */}
             <div className="relative ml-3 hidden md:block">
               <button
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none"
+                className="flex items-center text-sm font-medium text-body hover:text-ink focus:outline-none"
               >
                 {user?.name || 'User'}
                 {/* Simple dropdown arrow */}
@@ -59,11 +66,11 @@ export const Navbar = () => {
               </button>
 
               {isProfileMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border border-gray-200">
+                <div className="absolute right-0 mt-2 w-48 bg-surface rounded-md shadow-lg py-1 border border-line">
                   <Link
                     to="/profile"
                     onClick={() => setIsProfileMenuOpen(false)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="block px-4 py-2 text-sm text-body hover:bg-subtle"
                   >
                     Profile
                   </Link>
@@ -72,7 +79,7 @@ export const Navbar = () => {
                       setIsProfileMenuOpen(false);
                       logout();
                     }}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="block w-full text-left px-4 py-2 text-sm text-body hover:bg-subtle"
                   >
                     Logout
                   </button>
@@ -81,10 +88,11 @@ export const Navbar = () => {
             </div>
 
             {/* Mobile menu button (Hamburger) */}
-            <div className="flex items-center md:hidden">
+            <div className="flex items-center gap-1 md:hidden">
+              <ThemeToggle />
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none"
+                className="inline-flex items-center justify-center p-2 rounded-md text-faint hover:text-muted hover:bg-subtle focus:outline-none"
               >
                 <span className="sr-only">Open main menu</span>
                 <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -102,7 +110,7 @@ export const Navbar = () => {
 
       {/* Mobile Menu Panel */}
       {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-200">
+        <div className="md:hidden border-t border-line">
           <div className="pt-2 pb-3 space-y-1">
             <NavLink
               to="/dashboard"
@@ -128,15 +136,15 @@ export const Navbar = () => {
           </div>
           
           {/* Mobile Profile Section */}
-          <div className="pt-4 pb-3 border-t border-gray-200">
+          <div className="pt-4 pb-3 border-t border-line">
             <div className="px-4 flex items-center">
-              <div className="text-base font-medium text-gray-800">{user?.name}</div>
+              <div className="text-base font-medium text-ink">{user?.name}</div>
             </div>
             <div className="mt-3 space-y-1">
               <Link
                 to="/profile"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="block px-4 py-2 text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                className="block px-4 py-2 text-base font-medium text-body hover:text-ink hover:bg-subtle"
               >
                 Profile
               </Link>
@@ -145,7 +153,7 @@ export const Navbar = () => {
                   setIsMobileMenuOpen(false);
                   logout();
                 }}
-                className="block w-full text-left px-4 py-2 text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                className="block w-full text-left px-4 py-2 text-base font-medium text-body hover:text-ink hover:bg-subtle"
               >
                 Logout
               </button>

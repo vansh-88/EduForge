@@ -12,20 +12,20 @@ const QuizSummary = ({ quiz }) => {
   if (!quiz?.total) return null;
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm">
-      <span className="text-gray-600">
-        Quiz: <strong className="text-gray-900">{quiz.answered}</strong> of {quiz.total}{' '}
+    <div className="flex items-center gap-4 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+      <span className="text-body">
+        Quiz: <strong className="text-ink">{quiz.answered}</strong> of {quiz.total}{' '}
         answered
       </span>
 
       {quiz.answered > 0 && (
-        <span className="text-gray-600">
-          <strong className="text-gray-900">{quiz.correct}</strong> correct
+        <span className="text-body">
+          <strong className="text-ink">{quiz.correct}</strong> correct
         </span>
       )}
 
       {quiz.completed && (
-        <span className="ml-auto text-xs font-medium text-green-700">
+        <span className="ml-auto text-xs font-medium text-success-text">
           Quiz complete
         </span>
       )}
@@ -82,7 +82,7 @@ export default function Learn() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
-        <Spinner size="lg" className="text-blue-600" />
+        <Spinner size="lg" className="text-primary-text" />
       </div>
     );
   }
@@ -110,30 +110,30 @@ export default function Learn() {
     <article className="mx-auto mt-8 max-w-3xl pb-20">
       <Link
         to={coursePath(courseId)}
-        className="text-sm text-gray-500 transition hover:text-blue-700"
+        className="text-sm text-muted transition hover:text-primary-text"
       >
         ← Back to course
       </Link>
 
       <header className="mt-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">{lesson.title}</h1>
+          <h1 className="text-2xl font-bold text-ink">{lesson.title}</h1>
           <LessonToolbar />
         </div>
 
         {lesson.completed && (
-          <p className="mt-2 text-sm font-medium text-green-700">✓ Completed</p>
+          <p className="mt-2 text-sm font-medium text-success-text">✓ Completed</p>
         )}
 
         {lesson.objectives?.length > 0 && (
-          <section className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <section className="mt-5 rounded-lg border border-line bg-subtle p-4">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
               In this lesson
             </h2>
             <ul className="mt-2 space-y-1">
               {lesson.objectives.map((objective) => (
-                <li key={objective} className="flex gap-2 text-sm text-gray-600">
-                  <span className="text-blue-600">•</span>
+                <li key={objective} className="flex gap-2 text-sm text-body">
+                  <span className="text-primary-text">•</span>
                   {objective}
                 </li>
               ))}
@@ -191,10 +191,10 @@ export default function Learn() {
       )}
 
       {completeError && (
-        <p className="mt-4 text-sm text-red-600">{completeError}</p>
+        <p className="mt-4 text-sm text-danger-text">{completeError}</p>
       )}
 
-      <nav className="mt-10 flex items-center justify-between gap-4 border-t border-gray-200 pt-6">
+      <nav className="mt-10 flex items-center justify-between gap-4 border-t border-line pt-6">
         {navigation?.previous ? (
           <Button variant="secondary" onClick={() => goTo(navigation.previous)}>
             ← Previous

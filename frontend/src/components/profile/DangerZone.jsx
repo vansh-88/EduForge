@@ -38,15 +38,15 @@ export const DangerZone = ({ onDelete }) => {
   };
 
   return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-5">
-      <h2 className="font-semibold text-red-900">Delete your data</h2>
+    <section className="rounded-lg border border-danger-line bg-danger-soft p-5">
+      <h2 className="font-semibold text-danger-strong">Delete your data</h2>
 
-      <p className="mt-1 text-sm text-red-700">
+      <p className="mt-1 text-sm text-danger-text">
         Permanently removes every course, lesson, quiz answer and progress record
         on this account. This cannot be undone.
       </p>
 
-      <p className="mt-2 text-xs text-red-600">
+      <p className="mt-2 text-xs text-danger-text">
         Your sign-in is not deleted — logging in again creates a new, empty account.
       </p>
 
@@ -56,7 +56,7 @@ export const DangerZone = ({ onDelete }) => {
         </Button>
       ) : (
         <div className="mt-4 max-w-sm">
-          <label htmlFor="confirm-delete" className="text-sm font-medium text-red-900">
+          <label htmlFor="confirm-delete" className="text-sm font-medium text-danger-strong">
             Type <span className="font-mono font-semibold">{CONFIRM_WORD}</span> to confirm
           </label>
 
@@ -69,7 +69,7 @@ export const DangerZone = ({ onDelete }) => {
             placeholder={CONFIRM_WORD}
           />
 
-          {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+          {error && <p className="mt-2 text-sm text-danger-text">{error}</p>}
 
           <div className="mt-3 flex gap-2">
             <Button

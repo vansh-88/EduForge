@@ -10,31 +10,31 @@ import { Link } from 'react-router-dom';
  */
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="text-center">
-        <p className="text-sm font-semibold uppercase tracking-widest text-blue-600">
+        <p className="text-sm font-semibold uppercase tracking-widest text-primary-text">
           404
         </p>
 
-        <h1 className="mt-3 text-2xl font-bold text-gray-900 sm:text-3xl">
+        <h1 className="mt-3 text-2xl font-bold text-ink sm:text-3xl">
           We couldn't find that page
         </h1>
 
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-muted">
           The link may be broken, or the course it pointed to may have been deleted.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
             to="/dashboard"
-            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             Back to dashboard
           </Link>
 
           <Link
             to="/courses"
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="inline-flex items-center rounded-md border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-body transition hover:bg-subtle focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             Your courses
           </Link>

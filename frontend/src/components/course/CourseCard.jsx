@@ -19,23 +19,23 @@ export const CourseCard = ({ course }) => {
   return (
     <Link
       to={coursePath(courseId)}
-      className="group flex flex-col rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition hover:border-gray-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="group flex flex-col rounded-lg border border-line bg-surface p-5 shadow-sm transition hover:border-line-strong hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 line-clamp-2">
+        <h3 className="font-semibold text-ink group-hover:text-primary-text line-clamp-2">
           {course.title || course.query}
         </h3>
         <CourseStatusBadge status={course.status} />
       </div>
 
       {course.description && (
-        <p className="mt-2 text-sm text-gray-600 line-clamp-2">{course.description}</p>
+        <p className="mt-2 text-sm text-body line-clamp-2">{course.description}</p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <DifficultyBadge difficulty={course.difficulty} />
         {course.status === 'READY' && (
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {course.moduleCount} {course.moduleCount === 1 ? 'Module' : 'Modules'} ·{' '}
             {course.lessonCount} {course.lessonCount === 1 ? 'Lesson' : 'Lessons'}
           </span>
@@ -53,7 +53,7 @@ export const CourseCard = ({ course }) => {
         />
       )}
 
-      {createdAt && <p className="mt-3 text-xs text-gray-400">Created {createdAt}</p>}
+      {createdAt && <p className="mt-3 text-xs text-faint">Created {createdAt}</p>}
     </Link>
   );
 };

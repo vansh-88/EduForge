@@ -4,7 +4,33 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>EduForge</title>
+
+    <!--
+      Applies the saved theme BEFORE first paint.
+
+      React cannot do this: by the time it mounts, the browser has already
+      painted the default light surfaces, so every load of a dark-themed app
+      would start with a white flash. Kept inline and dependency-free so it runs
+      synchronously ahead of the bundle, and wrapped in try/catch because
+      localStorage throws outright when site data is blocked.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('eduforge.theme');
+          var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var dark =
+            pref === 'dark' ||
+            (pref === 'system' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

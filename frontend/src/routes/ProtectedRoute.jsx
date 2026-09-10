@@ -78,9 +78,9 @@ export const ProtectedRoute = () => {
   if (blocked) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-lg w-full rounded-lg border border-red-200 bg-red-50 p-6">
-          <h1 className="text-lg font-semibold text-red-800">Sign-in failed</h1>
-          <p className="mt-2 text-sm text-red-700">
+        <div className="max-w-lg w-full rounded-lg border border-danger-line bg-danger-soft p-6">
+          <h1 className="text-lg font-semibold text-danger-strong">Sign-in failed</h1>
+          <p className="mt-2 text-sm text-danger-text">
             {error?.message ??
               'Auth0 kept redirecting back without signing you in. Check that this app’s Allowed Callback URLs, Logout URLs, and Web Origins include http://localhost:5173, and that the API audience matches the backend.'}
           </p>
@@ -90,7 +90,7 @@ export const ProtectedRoute = () => {
               clearAttempts();
               window.location.replace(`${location.pathname}${location.search}`);
             }}
-            className="mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            className="mt-4 rounded-md bg-danger px-4 py-2 text-sm font-medium text-white hover:bg-danger-hover"
           >
             Try again
           </button>

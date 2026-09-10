@@ -1,7 +1,7 @@
 const STYLES = {
-  beginner: 'bg-green-50 text-green-700 ring-green-600/20',
-  intermediate: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  advanced: 'bg-purple-50 text-purple-700 ring-purple-600/20',
+  beginner: 'bg-success-soft text-success-text ring-success',
+  intermediate: 'bg-warn-soft text-warn-text ring-warn',
+  advanced: 'bg-accent-soft text-accent-text ring-accent',
 };
 
 const LABELS = {
@@ -16,7 +16,7 @@ export const DifficultyBadge = ({ difficulty }) => {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-        STYLES[difficulty] ?? 'bg-gray-50 text-gray-600 ring-gray-500/20'
+        STYLES[difficulty] ?? 'bg-subtle text-body ring-line-strong'
       }`}
     >
       {LABELS[difficulty] ?? difficulty}

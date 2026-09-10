@@ -3,10 +3,10 @@ export const WelcomeSection = ({ user }) => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">
+      <h1 className="text-2xl font-bold text-ink">
         {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
       </h1>
-      <p className="mt-1 text-sm text-gray-500">Pick up where you left off, or start something new.</p>
+      <p className="mt-1 text-sm text-muted">Pick up where you left off, or start something new.</p>
     </div>
   );
 };

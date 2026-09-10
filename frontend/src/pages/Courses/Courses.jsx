@@ -23,7 +23,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const selectClass =
-  'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-body focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
 
 export default function Courses() {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export default function Courses() {
   return (
     <div className="mt-8 pb-16">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Your courses</h1>
+        <h1 className="text-2xl font-bold text-ink">Your courses</h1>
         <Button onClick={() => navigate('/generate')}>New course</Button>
       </header>
 
@@ -128,7 +128,7 @@ export default function Courses() {
             ← Previous
           </Button>
 
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted">
             Page {pagination.page} of {pagination.totalPages}
           </span>
 

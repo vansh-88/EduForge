@@ -44,8 +44,8 @@ export default function Dashboard() {
 
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Recent courses</h2>
-          <Link to="/courses" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+          <h2 className="text-lg font-semibold text-ink">Recent courses</h2>
+          <Link to="/courses" className="text-sm font-medium text-primary-text hover:text-primary-text">
             View all →
           </Link>
         </div>

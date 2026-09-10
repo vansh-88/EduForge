@@ -49,17 +49,17 @@ export const AvatarUploader = ({ user, onUpload, onRemove, isUploading }) => {
           <img
             src={user.picture}
             alt=""
-            className="h-20 w-20 rounded-full object-cover ring-1 ring-gray-200"
+            className="h-20 w-20 rounded-full object-cover ring-1 ring-line"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-xl font-semibold text-blue-700">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary-soft text-xl font-semibold text-primary-text">
             {initialsOf(user.name, user.email)}
           </div>
         )}
 
         {isUploading && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70">
-            <Spinner size="sm" className="text-blue-600" />
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-veil">
+            <Spinner size="sm" className="text-primary-text" />
           </div>
         )}
       </div>
@@ -89,9 +89,9 @@ export const AvatarUploader = ({ user, onUpload, onRemove, isUploading }) => {
           )}
         </div>
 
-        <p className="mt-2 text-xs text-gray-400">JPG, PNG, WebP or GIF · up to 5MB</p>
+        <p className="mt-2 text-xs text-faint">JPG, PNG, WebP or GIF · up to 5MB</p>
 
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-xs text-danger-text">{error}</p>}
       </div>
     </div>
   );

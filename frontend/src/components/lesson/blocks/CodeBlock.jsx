@@ -30,29 +30,29 @@ export const CodeBlock = ({ block }) => {
 
   return (
     <figure className="my-6">
-      <div className="overflow-hidden rounded-lg border border-gray-800 bg-gray-900">
-        <div className="flex items-center justify-between border-b border-gray-800 px-4 py-2">
-          <span className="font-mono text-xs text-gray-400">
+      <div className="overflow-hidden rounded-lg border border-inverse-line bg-inverse">
+        <div className="flex items-center justify-between border-b border-inverse-line px-4 py-2">
+          <span className="font-mono text-xs text-on-inverse-muted">
             {block.language || 'plaintext'}
           </span>
 
           <button
             type="button"
             onClick={handleCopy}
-            className="text-xs text-gray-400 transition hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="text-xs text-on-inverse-muted transition hover:text-on-inverse focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
 
         {/* The pre scrolls on its own so a long line never widens the page. */}
-        <pre className="overflow-x-auto p-4 text-sm leading-6 text-gray-100">
+        <pre className="overflow-x-auto p-4 text-sm leading-6 text-on-inverse">
           <code>{block.text}</code>
         </pre>
       </div>
 
       {block.caption && (
-        <figcaption className="mt-2 text-xs text-gray-500">{block.caption}</figcaption>
+        <figcaption className="mt-2 text-xs text-muted">{block.caption}</figcaption>
       )}
     </figure>
   );

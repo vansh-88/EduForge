@@ -4,9 +4,9 @@
 const TAGS = { 1: 'h2', 2: 'h3', 3: 'h4' };
 
 const STYLES = {
-  1: 'text-xl font-bold text-gray-900 mt-10 mb-3',
-  2: 'text-lg font-semibold text-gray-900 mt-8 mb-2',
-  3: 'text-base font-semibold text-gray-800 mt-6 mb-2',
+  1: 'text-xl font-bold text-ink mt-10 mb-3',
+  2: 'text-lg font-semibold text-ink mt-8 mb-2',
+  3: 'text-base font-semibold text-ink mt-6 mb-2',
 };
 
 export const HeadingBlock = ({ block }) => {

@@ -5,15 +5,15 @@ import { lessonPath } from '../../utils/paths';
 // no dot: "not generated yet" is the normal resting state for most of a course
 // and marking it would make a healthy course look full of warnings.
 const STATUS_DOT = {
-  GENERATING: 'bg-blue-600 animate-pulse',
-  PROCESSING: 'bg-blue-600 animate-pulse',
-  RETRYING: 'bg-amber-500 animate-pulse',
-  FAILED: 'bg-red-500',
+  GENERATING: 'bg-primary animate-pulse',
+  PROCESSING: 'bg-primary animate-pulse',
+  RETRYING: 'bg-warn animate-pulse',
+  FAILED: 'bg-danger',
 };
 
 const CheckIcon = () => (
   <svg
-    className="h-4 w-4 text-green-600"
+    className="h-4 w-4 text-success"
     viewBox="0 0 20 20"
     fill="currentColor"
     aria-hidden="true"
@@ -38,9 +38,9 @@ export const LessonRow = ({ lesson, courseId, moduleId, completed = false }) => 
   return (
     <Link
       to={lessonPath(courseId, moduleId, lesson.id)}
-      className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="group flex items-center gap-3 rounded-md px-3 py-2.5 transition hover:bg-subtle focus:outline-none focus:ring-2 focus:ring-primary"
     >
-      <span className="w-6 shrink-0 text-xs font-medium tabular-nums text-gray-400">
+      <span className="w-6 shrink-0 text-xs font-medium tabular-nums text-faint">
         {lesson.order + 1}
       </span>
 
@@ -54,15 +54,15 @@ export const LessonRow = ({ lesson, courseId, moduleId, completed = false }) => 
       </span>
 
       <span
-        className={`flex-1 text-sm group-hover:text-blue-700 ${
-          completed ? 'text-gray-500' : 'text-gray-900'
+        className={`flex-1 text-sm group-hover:text-primary-text ${
+          completed ? 'text-muted' : 'text-ink'
         }`}
       >
         {lesson.title}
       </span>
 
       {lesson.status === 'FAILED' && (
-        <span className="shrink-0 text-xs font-medium text-red-600">Failed</span>
+        <span className="shrink-0 text-xs font-medium text-danger-text">Failed</span>
       )}
     </Link>
   );

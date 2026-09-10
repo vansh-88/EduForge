@@ -1,1 +1,149 @@
 @import "tailwindcss";
+
+/*
+ * Theming.
+ *
+ * Colours are named for their ROLE, not their value: `bg-surface`, not
+ * `bg-white`. Tailwind v4 compiles a token in `@theme` down to `var(--color-*)`,
+ * so redefining those variables under `[data-theme='dark']` recolours the whole
+ * application without a single `dark:` prefix in any component.
+ *
+ * That is the point. With `dark:` variants, every one of the ~310 colour classes
+ * in this app would need a twin, and every future component would silently break
+ * in dark mode the moment someone forgot one. Here a component that uses the
+ * role tokens is theme-correct by construction, and tuning dark mode means
+ * editing this file alone.
+ *
+ * Literal colours are still fine where the colour IS the meaning and does not
+ * change between themes — a YouTube-red brand mark, say. Everything structural
+ * should use a token below.
+ */
+
+@theme {
+  /* Surfaces, from furthest back to nearest front. */
+  --color-canvas: #f9fafb; /* page background */
+  --color-surface: #ffffff; /* cards, panels, navbar */
+  --color-subtle: #f3f4f6; /* quiet fills inside a surface */
+  --color-inverse: #111827; /* code blocks: dark in BOTH themes */
+  --color-on-inverse: #f3f4f6; /* text on --color-inverse */
+  --color-on-inverse-muted: #9ca3af; /* language label, copy button */
+  /* Translucent scrim over content that is busy. Its own token rather than a
+     `bg-surface/70` opacity modifier, because Tailwind resolves those against
+     the token's LIGHT value at build time — the utility comes out as a literal
+     colour and stops following the theme entirely. */
+  --color-veil: rgb(255 255 255 / 0.72);
+  --color-inverse-line: #374151; /* divider inside a code block */
+
+  /* Text, strongest to faintest. */
+  --color-ink: #111827; /* headings, primary copy */
+  --color-body: #374151; /* body copy */
+  --color-muted: #6b7280; /* labels, secondary detail */
+  --color-faint: #9ca3af; /* timestamps, placeholders */
+
+  /* Lines. */
+  --color-line: #e5e7eb; /* card and divider borders */
+  --color-line-strong: #d1d5db; /* input borders, needs more contrast */
+
+  /* Primary action. */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-weak: #93c5fd; /* disabled primary */
+  --color-primary-soft: #eff6ff; /* tinted background */
+  --color-primary-text: #1d4ed8; /* primary as text/icon on a light surface */
+
+  /* Status. Hue carries meaning, so it survives the theme swap; only the
+     lightness moves, because saturated colour on a dark ground is harsh. */
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: #fef2f2;
+  --color-danger-line: #fecaca;
+  --color-danger-text: #b91c1c;
+  --color-danger-strong: #7f1d1d;
+
+  --color-success: #16a34a;
+  --color-success-soft: #f0fdf4;
+  --color-success-text: #15803d;
+
+  --color-warn: #f59e0b;
+  --color-warn-soft: #fffbeb;
+  --color-warn-text: #b45309;
+
+  --color-accent: #9333ea; /* the third difficulty tier */
+  --color-accent-soft: #faf5ff;
+  --color-accent-text: #7e22ce;
+}
+
+/*
+ * Dark theme.
+ *
+ * Applied by a `data-theme` attribute on <html>, set before first paint by the
+ * inline script in index.html — a class toggled after React mounts would show a
+ * flash of the light theme on every load.
+ *
+ * Surfaces lift as they come forward (canvas darkest, surface lighter), which is
+ * how depth reads without shadows; shadows are nearly invisible on dark grounds.
+ */
+[data-theme='dark'] {
+  --color-canvas: #0b1120;
+  --color-surface: #131c2e;
+  --color-subtle: #1e293b;
+  --color-inverse: #020617; /* pushed darker so code still separates from surface */
+  --color-on-inverse: #e2e8f0;
+  --color-on-inverse-muted: #64748b;
+  --color-veil: rgb(19 28 46 / 0.72);
+  --color-inverse-line: #1e293b;
+
+  --color-ink: #f1f5f9;
+  --color-body: #cbd5e1;
+  --color-muted: #94a3b8;
+  --color-faint: #64748b;
+
+  --color-line: #1e293b;
+  --color-line-strong: #334155;
+
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-weak: #1e3a8a;
+  --color-primary-soft: #172554;
+  --color-primary-text: #93c5fd; /* lightened: blue-700 on a dark ground is unreadable */
+
+  --color-danger: #ef4444;
+  --color-danger-hover: #f87171;
+  --color-danger-soft: #2a1215;
+  --color-danger-line: #7f1d1d;
+  --color-danger-text: #fca5a5;
+  --color-danger-strong: #fecaca;
+
+  --color-success: #22c55e;
+  --color-success-soft: #052e1a;
+  --color-success-text: #86efac;
+
+  --color-warn: #f59e0b;
+  --color-warn-soft: #2b1d05;
+  --color-warn-text: #fcd34d;
+
+  --color-accent: #a855f7;
+  --color-accent-soft: #2a1145;
+  --color-accent-text: #d8b4fe;
+}
+
+/* The page itself, so a short page does not show the browser's default white
+   below the content. */
+html {
+  background-color: var(--color-canvas);
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark; /* native scrollbars, form controls and caret follow */
+}
+
+/* Theme changes are instant on load and animated only when the user toggles —
+   see the `theme-transition` class applied by ThemeProvider. */
+.theme-transition,
+.theme-transition * {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}

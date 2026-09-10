@@ -3,7 +3,7 @@ import { Navbar } from './Navbar';
 
 export const AppLayout = () => {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-canvas flex flex-col">
         
       <Navbar />
 

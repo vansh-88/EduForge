@@ -18,15 +18,15 @@ export const GenerationProgress = ({
 
   if (status === 'failed') {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-        <h3 className="font-semibold text-red-900">Generation failed</h3>
+      <div className="rounded-lg border border-danger-line bg-danger-soft p-6">
+        <h3 className="font-semibold text-danger-strong">Generation failed</h3>
 
-        <p className="mt-1 text-sm text-red-700">
+        <p className="mt-1 text-sm text-danger-text">
           {lastError || 'Something went wrong while generating this content.'}
         </p>
 
         {maxAttempts != null && attempt > 0 && (
-          <p className="mt-2 text-xs text-red-600">
+          <p className="mt-2 text-xs text-danger-text">
             Failed after {attempt} of {maxAttempts} attempts.
           </p>
         )}
@@ -51,21 +51,21 @@ export const GenerationProgress = ({
   const isRetryAttempt = status === 'retrying';
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="rounded-lg border border-line bg-surface p-6 shadow-sm">
       <div className="flex items-center gap-3">
-        <Spinner size="sm" className="text-blue-600" />
-        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <Spinner size="sm" className="text-primary-text" />
+        <h3 className="font-semibold text-ink">{title}</h3>
       </div>
 
       <ProgressBar className="mt-4" value={progress} label={stageLabel} />
 
       {isRetryAttempt && maxAttempts != null && (
-        <p className="mt-3 text-xs text-amber-600">
+        <p className="mt-3 text-xs text-warn-text">
           Hit a snag — retrying (attempt {attempt} of {maxAttempts}).
         </p>
       )}
 
-      <p className="mt-3 text-xs text-gray-400">
+      <p className="mt-3 text-xs text-faint">
         This usually takes under a minute. You can safely leave this page and
         come back.
       </p>

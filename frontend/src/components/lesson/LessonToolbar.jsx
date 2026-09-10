@@ -45,10 +45,10 @@ export const LessonToolbar = ({ handlers = {} }) => (
           disabled={disabled}
           onClick={onClick}
           title={action.comingSoon ? `${action.label} — coming soon` : action.label}
-          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-primary ${
             disabled
-              ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
-              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+              ? 'cursor-not-allowed border-line bg-subtle text-faint'
+              : 'border-line-strong bg-surface text-body hover:bg-subtle'
           }`}
         >
           <svg

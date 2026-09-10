@@ -3,7 +3,7 @@ import { LessonRow } from './LessonRow';
 
 const ChevronIcon = ({ open }) => (
   <svg
-    className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
+    className={`h-4 w-4 shrink-0 text-faint transition-transform ${
       open ? 'rotate-90' : ''
     }`}
     viewBox="0 0 20 20"
@@ -25,33 +25,33 @@ const ModulePanel = ({ module, courseId, completedIds, defaultOpen }) => {
   const doneCount = lessons.filter((lesson) => completedIds.has(lesson.id)).length;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-line bg-surface">
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary"
       >
         <ChevronIcon open={isOpen} />
 
         <span className="min-w-0 flex-1">
-          <span className="block text-xs font-medium uppercase tracking-wide text-gray-400">
+          <span className="block text-xs font-medium uppercase tracking-wide text-faint">
             Module {module.order + 1}
           </span>
-          <span className="block truncate font-semibold text-gray-900">
+          <span className="block truncate font-semibold text-ink">
             {module.title}
           </span>
         </span>
 
-        <span className="shrink-0 text-xs tabular-nums text-gray-500">
+        <span className="shrink-0 text-xs tabular-nums text-muted">
           {doneCount}/{lessons.length}
         </span>
       </button>
 
       {isOpen && (
-        <div className="border-t border-gray-100 px-2 py-2">
+        <div className="border-t border-line px-2 py-2">
           {module.goal && (
-            <p className="px-3 pb-2 pt-1 text-xs text-gray-500">{module.goal}</p>
+            <p className="px-3 pb-2 pt-1 text-xs text-muted">{module.goal}</p>
           )}
 
           {lessons.map((lesson) => (

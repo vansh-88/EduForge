@@ -9,9 +9,9 @@ export const EmptyState = ({
   className = ''
 }) => {
   return (
-    <div className={`text-center py-12 px-4 border-2 border-dashed border-gray-300 rounded-lg ${className}`}>
-      <h3 className="mt-2 text-sm font-semibold text-gray-900">{title}</h3>
-      <p className="mt-1 text-sm text-gray-500 mb-6">{description}</p>
+    <div className={`text-center py-12 px-4 border-2 border-dashed border-line-strong rounded-lg ${className}`}>
+      <h3 className="mt-2 text-sm font-semibold text-ink">{title}</h3>
+      <p className="mt-1 text-sm text-muted mb-6">{description}</p>
       
       {/* Either use the provided action label/handler, or render custom children */}
       {actionLabel && onAction ? (

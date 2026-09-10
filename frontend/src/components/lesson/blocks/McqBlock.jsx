@@ -10,15 +10,15 @@ const LETTERS = ['A', 'B', 'C', 'D'];
  */
 const optionStyles = ({ answered, isSelected, isCorrectAnswer }) => {
   if (!answered) {
-    return 'border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 cursor-pointer';
+    return 'border-line bg-surface hover:border-primary hover:bg-primary-soft cursor-pointer';
   }
 
   // The right answer is always revealed once answered, whether or not it was
   // the one picked — being told only "wrong" teaches nothing.
-  if (isCorrectAnswer) return 'border-green-500 bg-green-50 cursor-default';
-  if (isSelected) return 'border-red-500 bg-red-50 cursor-default';
+  if (isCorrectAnswer) return 'border-success bg-success-soft cursor-default';
+  if (isSelected) return 'border-danger bg-danger-soft cursor-default';
 
-  return 'border-gray-200 bg-white opacity-60 cursor-default';
+  return 'border-line bg-surface opacity-60 cursor-default';
 };
 
 /**
@@ -55,12 +55,12 @@ export const McqBlock = ({ block, state, onAnswer }) => {
   };
 
   return (
-    <div className="my-8 rounded-lg border border-gray-200 bg-gray-50 p-5">
+    <div className="my-8 rounded-lg border border-line bg-subtle p-5">
       <div className="flex items-start gap-2">
-        <span className="mt-0.5 shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-gray-600">
+        <span className="mt-0.5 shrink-0 rounded bg-subtle px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-body">
           Quiz
         </span>
-        <p className="font-medium text-gray-900">{block.question}</p>
+        <p className="font-medium text-ink">{block.question}</p>
       </div>
 
       <div className="mt-4 space-y-2">
@@ -75,23 +75,23 @@ export const McqBlock = ({ block, state, onAnswer }) => {
               type="button"
               disabled={answered || isSubmitting}
               onClick={() => handleSelect(index)}
-              className={`flex w-full items-center gap-3 rounded-md border px-4 py-2.5 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500 ${optionStyles(
+              className={`flex w-full items-center gap-3 rounded-md border px-4 py-2.5 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-primary ${optionStyles(
                 { answered, isSelected, isCorrectAnswer }
               )}`}
             >
-              <span className="shrink-0 font-mono text-xs text-gray-400">
+              <span className="shrink-0 font-mono text-xs text-faint">
                 {LETTERS[index]}
               </span>
 
-              <span className="flex-1 text-gray-800">{option}</span>
+              <span className="flex-1 text-ink">{option}</span>
 
               {isCorrectAnswer && (
-                <span className="shrink-0 text-xs font-semibold text-green-700">
+                <span className="shrink-0 text-xs font-semibold text-success-text">
                   Correct
                 </span>
               )}
               {isSelected && !isCorrectAnswer && (
-                <span className="shrink-0 text-xs font-semibold text-red-700">
+                <span className="shrink-0 text-xs font-semibold text-danger-text">
                   Your answer
                 </span>
               )}
@@ -101,20 +101,20 @@ export const McqBlock = ({ block, state, onAnswer }) => {
       </div>
 
       {isSubmitting && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+        <div className="mt-3 flex items-center gap-2 text-xs text-muted">
           <Spinner size="sm" />
           Checking…
         </div>
       )}
 
-      {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-xs text-danger-text">{error}</p>}
 
       {answered && state.explanation && (
-        <div className="mt-4 rounded-md border border-gray-200 bg-white p-3">
-          <p className="text-xs font-semibold text-gray-700">
+        <div className="mt-4 rounded-md border border-line bg-surface p-3">
+          <p className="text-xs font-semibold text-body">
             {state.correct ? 'Correct' : 'Not quite'}
           </p>
-          <p className="mt-1 text-sm leading-6 text-gray-600">{state.explanation}</p>
+          <p className="mt-1 text-sm leading-6 text-body">{state.explanation}</p>
         </div>
       )}
     </div>

@@ -81,17 +81,17 @@ const GenerateCourse = () => {
 
   return (
     <div className="max-w-2xl mx-auto mt-8">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="bg-surface rounded-lg shadow-sm border border-line p-6 sm:p-8">
+        <h1 className="text-2xl font-bold text-ink mb-2">
           Create a new course
         </h1>
         
         {isSubmitting ? (
-          <p className="text-sm text-blue-600 mb-6 font-medium animate-pulse">
+          <p className="text-sm text-primary-text mb-6 font-medium animate-pulse">
             Creating your course… this may take a moment.
           </p>
         ) : (
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-muted mb-6">
             What topic would you like to explore today?
           </p>
         )}
@@ -99,10 +99,10 @@ const GenerateCourse = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative">
             <div className="flex justify-between items-end mb-1">
-              <label htmlFor="topic" className="text-sm font-medium text-gray-700">
+              <label htmlFor="topic" className="text-sm font-medium text-body">
                 Topic
               </label>
-              <span className={`text-xs ${topic.length > 300 ? 'text-red-500' : 'text-gray-400'}`}>
+              <span className={`text-xs ${topic.length > 300 ? 'text-danger' : 'text-faint'}`}>
                 {topic.length} / 300
               </span>
             </div>
@@ -122,7 +122,7 @@ const GenerateCourse = () => {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-body">
               Difficulty Level
             </label>
             <SegmentedControl
@@ -133,7 +133,7 @@ const GenerateCourse = () => {
             />
           </div>
 
-          <div className="pt-4 border-t border-gray-100 flex justify-end">
+          <div className="pt-4 border-t border-line flex justify-end">
             <Button 
               type="submit" 
               variant="primary" 

@@ -92,7 +92,7 @@ export default function CourseOverview() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
-        <Spinner size="lg" className="text-blue-600" />
+        <Spinner size="lg" className="text-primary-text" />
       </div>
     );
   }
@@ -119,19 +119,19 @@ export default function CourseOverview() {
     <div className="mx-auto mt-8 max-w-3xl pb-16">
       <header>
         {/* Title is null until generation produces one — the original prompt stands in. */}
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-ink">
           {course.title || course.query}
         </h1>
 
         {course.description && (
-          <p className="mt-2 text-gray-600">{course.description}</p>
+          <p className="mt-2 text-body">{course.description}</p>
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <DifficultyBadge difficulty={course.difficulty} />
 
           {course.status === 'READY' && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-muted">
               {course.moduleCount} modules · {course.lessonCount} lessons
             </span>
           )}
@@ -139,7 +139,7 @@ export default function CourseOverview() {
           {course.tags?.map((tag) => (
             <span
               key={tag}
-              className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+              className="rounded-full bg-subtle px-2 py-0.5 text-xs text-body"
             >
               {tag}
             </span>
@@ -181,14 +181,14 @@ export default function CourseOverview() {
       {course.status === 'READY' && (
         <>
           {course.learningGoals?.length > 0 && (
-            <section className="mt-8 rounded-lg border border-gray-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-gray-900">
+            <section className="mt-8 rounded-lg border border-line bg-surface p-5">
+              <h2 className="text-sm font-semibold text-ink">
                 What you'll learn
               </h2>
               <ul className="mt-3 space-y-1.5">
                 {course.learningGoals.map((goal) => (
-                  <li key={goal} className="flex gap-2 text-sm text-gray-600">
-                    <span className="text-blue-600">•</span>
+                  <li key={goal} className="flex gap-2 text-sm text-body">
+                    <span className="text-primary-text">•</span>
                     {goal}
                   </li>
                 ))}
@@ -223,7 +223,7 @@ export default function CourseOverview() {
           </section>
 
           <section className="mt-8">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Curriculum</h2>
+            <h2 className="mb-3 text-sm font-semibold text-ink">Curriculum</h2>
             <ModuleAccordion
               modules={course.modules}
               courseId={courseId}
@@ -234,7 +234,7 @@ export default function CourseOverview() {
         </>
       )}
 
-      <div className="mt-12 border-t border-gray-200 pt-6">
+      <div className="mt-12 border-t border-line pt-6">
         <Button variant="secondary" onClick={handleDelete} loading={isDeleting}>
           Delete course
         </Button>
