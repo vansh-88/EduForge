@@ -41,6 +41,9 @@ const TRANSLITERATE = {
   ' ': ' ',  // non-breaking space → plain, so wrapping still works
 };
 
+// PDF text has no tab stops, so a literal tab renders as nothing.
+const TAB_AS_SPACES = '    ';
+
 const isEncodable = (ch) => {
   const code = ch.codePointAt(0);
   // Printable ASCII, or Latin-1 supplement, or a WinAnsi punctuation slot.
@@ -58,6 +61,23 @@ export function toPdfSafe(text) {
   // Iterated by code point, so a surrogate pair (an emoji) is handled as one
   // character instead of two broken halves.
   for (const ch of input) {
+    // Whitespace control characters are handled before the encodability test,
+    // which only accepts 0x20 and above. Newline is 0x0A, so without this it
+    // was being stripped along with the genuine control codes — collapsing a
+    // whole code block into one continuous run of text. splitTextToSize honours
+    // newlines, so preserving the character is all that line structure needs.
+    if (ch === '\n') {
+      out += ch;
+      continue;
+    }
+    if (ch === '\t') {
+      out += TAB_AS_SPACES;
+      continue;
+    }
+    // Dropped rather than kept, so a CRLF source does not leave a stray
+    // character before every newline.
+    if (ch === '\r') continue;
+
     if (isEncodable(ch)) {
       out += ch;
       continue;
