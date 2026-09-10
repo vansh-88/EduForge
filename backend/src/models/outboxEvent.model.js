@@ -15,13 +15,14 @@ const outboxEventSchema = new mongoose.Schema(
       enum: [
         'COURSE_GENERATION_REQUESTED',
         'LESSON_GENERATION_REQUESTED',
+        'VIDEO_SLOT_RESOLUTION_REQUESTED',
       ],
     },
 
     aggregateType: {
       type: String,
       required: true,
-      enum: ['Course', 'Lesson'],
+      enum: ['Course', 'Lesson', 'VideoSlot'],
     },
 
     aggregateId: {

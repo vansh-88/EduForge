@@ -2,6 +2,7 @@ import { OutboxEvent } from '../../models/index.js';
 import { courseGenerationQueue } from '../queue/course.queue.js';
 import { OUTBOX_POLL_INTERVAL_MS, OUTBOX_BATCH_SIZE, OUTBOX_MAX_ATTEMPTS } from '../../config/env.config.js';
 import {lessonGenerationQueue} from '../queue/lesson.queue.js';
+import { videoResolutionQueue } from '../queue/video.queue.js';
 
 // Configuration
 const OUTBOX_LOCK_TIME_MS = 30_000; // Rescue stuck events after 30 seconds
@@ -22,6 +23,13 @@ const EVENT_ROUTER = {
   'LESSON_GENERATION_REQUESTED': async (payload, eventId) => {
     await lessonGenerationQueue.add(
       'generate-lesson',
+      payload,
+      { jobId: eventId } // BullMQ idempotency lock
+    );
+  },
+  'VIDEO_SLOT_RESOLUTION_REQUESTED': async (payload, eventId) => {
+    await videoResolutionQueue.add(
+      'resolve-video-slot',
       payload,
       { jobId: eventId } // BullMQ idempotency lock
     );

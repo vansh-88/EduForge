@@ -98,6 +98,41 @@ export async function publishCourseDeleted(courseId) {
 }
 
 /**
+ * Announces that one video slot has settled — resolved, or definitively not.
+ *
+ * Published on the lesson's own generation channel rather than a channel of its
+ * own, so the reader's existing stream carries it and no second connection is
+ * needed.
+ *
+ * These events describe a sibling resource rather than the lesson's own
+ * lifecycle, so they deliberately do NOT go through toGenerationEvent: there is
+ * no stage, no progress and no attempt count to report, and forcing them into
+ * that shape would mean publishing zeroes that a client could mistake for the
+ * lesson's own progress being reset.
+ */
+export async function publishVideoSlotEvent(lessonId, { slotId, status }) {
+  await publishTo(channelFor('lesson', lessonId), {
+    type: `video_slot_${status.toLowerCase()}`,
+    slotId,
+    status: status.toLowerCase(),
+  });
+}
+
+/**
+ * Announces that every video slot on a lesson has settled.
+ *
+ * This is what actually terminates a lesson's SSE stream. `lesson_generation_completed`
+ * no longer does, because enrichment continues after the content is readable —
+ * closing there would drop every video update on the floor.
+ */
+export async function publishEnrichmentCompleted(lessonId) {
+  await publishTo(channelFor('lesson', lessonId), {
+    type: 'lesson_enrichment_completed',
+    status: 'ready',
+  });
+}
+
+/**
  * SUBSCRIBE puts a connection into subscriber-only mode, so this must never reuse
  * the shared client that BullMQ depends on.
  */

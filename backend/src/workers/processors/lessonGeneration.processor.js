@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
-import { Lesson, Module, Course } from '../../models/index.js';
+import { Lesson, Module, Course, VideoSlot, OutboxEvent } from '../../models/index.js';
+import { normalizeQuery, deriveFallbackQuery } from '../../services/video/query.js';
+import { VIDEO_JOB_ATTEMPTS } from '../../config/env.config.js';
 import { lessonOutputSchema, generateLessonRequestSchema } from '../../schemas/index.js';
 import { generateStructured } from '../../services/ai/aiService.js';
 import { buildLessonPrompt } from '../../services/ai/prompts/lessonPrompt.js';
 import { buildLessonContext } from '../../services/ai/context/lessonContext.js';
 import crypto from 'node:crypto';
-import { publishGenerationEvent } from '../../services/realtime/generationEvents.js';
+import { publishGenerationEvent, publishEnrichmentCompleted } from '../../services/realtime/generationEvents.js';
 import { ensureNextLessonGenerated } from '../../services/lesson/lesson.service.js';
 
 
@@ -27,22 +29,73 @@ async function setStageAndPublish(lessonId, state, { stage, progress, attempt, m
 }
 
 
-function withQuestionIds(content) {
-  return content.map((block) =>
-    block.type === 'mcq' ? { ...block, id: crypto.randomUUID() } : block
-  );
+/**
+ * Stamps stable ids onto the blocks that need to be addressed later: MCQs, so an
+ * answer can be recorded against a question, and videos, so a resolved video can
+ * be matched back to its slot. Both are generated here rather than by the model —
+ * the model cannot be trusted to produce unique ids, and it costs tokens to ask.
+ */
+function withBlockIds(content) {
+  return content.map((block) => {
+    if (block.type === 'mcq') return { ...block, id: crypto.randomUUID() };
+    if (block.type === 'video') return { ...block, slotId: crypto.randomUUID() };
+    return block;
+  });
 }
 
-async function persistGeneratedLesson(session, { lessonId, generationId, aiResponse }) {
+/** VideoSlot rows + their outbox events, for every video block in the content. */
+function buildVideoSlots(content, { lessonId, courseId, generationId }) {
+  const slots = [];
+  const events = [];
+
+  content.forEach((block, index) => {
+    if (block.type !== 'video') return;
+
+    const primaryQuery = normalizeQuery(block.query);
+    if (!primaryQuery) return;
+
+    slots.push({
+      lesson: lessonId,
+      course: courseId,
+      slotId: block.slotId,
+      order: index,
+      status: 'PENDING',
+      search: {
+        primaryQuery,
+        // Derived, never model-generated — see services/video/query.js.
+        fallbackQuery: deriveFallbackQuery(primaryQuery),
+        language: 'en',
+        caption: block.caption ?? null,
+      },
+      maxAttempts: VIDEO_JOB_ATTEMPTS,
+    });
+
+    events.push({
+      eventId: `video-slot-${block.slotId}-${generationId}`,
+      type: 'VIDEO_SLOT_RESOLUTION_REQUESTED',
+      aggregateType: 'VideoSlot',
+      // No VideoSlot _id exists until insertMany runs, and the slot is uniquely
+      // addressed by (lesson, slotId) anyway.
+      aggregateId: lessonId,
+      payload: { lessonId: String(lessonId), courseId: String(courseId), slotId: block.slotId },
+    });
+  });
+
+  return { slots, events };
+}
+
+async function persistGeneratedLesson(session, { lessonId, courseId, generationId, aiResponse }) {
   const currentLesson = await Lesson.findOne({ _id: lessonId, status: 'PROCESSING', generationId }).session(session);
 
   if (!currentLesson) {
     // Not our PROCESSING claim any more (already READY, or a newer cycle took over).
     // Report that nothing was written so the caller does not announce a completion.
-    return false;
+    return { persisted: false, slotCount: 0 };
   }
 
-  currentLesson.content = withQuestionIds(aiResponse.content);
+  const content = withBlockIds(aiResponse.content);
+
+  currentLesson.content = content;
   currentLesson.completedAt = new Date();
   currentLesson.lastError = null;
   currentLesson.stage = 'completed';
@@ -50,7 +103,24 @@ async function persistGeneratedLesson(session, { lessonId, generationId, aiRespo
   currentLesson.status = 'READY';
   await currentLesson.save({ session });
 
-  return true;
+  const { slots, events } = buildVideoSlots(content, { lessonId, courseId, generationId });
+
+  if (slots.length > 0) {
+    // A regeneration replaces the content, so any slots from the previous cycle
+    // point at blocks that no longer exist. Clearing them keeps the "unsettled
+    // slot" count — which is what decides when the SSE stream may close — from
+    // being held open forever by an orphan.
+    await VideoSlot.deleteMany({ lesson: lessonId }).session(session);
+    await VideoSlot.insertMany(slots, { session });
+
+    // Same transaction as the lesson and the slots: the enrichment work is
+    // requested if and only if the content that needs it was committed.
+    await OutboxEvent.insertMany(events, { session });
+  } else {
+    await VideoSlot.deleteMany({ lesson: lessonId }).session(session);
+  }
+
+  return { persisted: true, slotCount: slots.length };
 }
 
 export async function runAiLessonGeneration({ lessonId, courseId, userId, generationId, source = 'user', job }) {
@@ -108,11 +178,11 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
 
     await setStageAndPublish(lessonId, state, { stage: 'saving', progress: 80, attempt: currentAttempt, maxAttempts });
 
-    let persisted = false;
+    let result = { persisted: false, slotCount: 0 };
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        persisted = await persistGeneratedLesson(session, { lessonId, generationId, aiResponse });
+        result = await persistGeneratedLesson(session, { lessonId, courseId, generationId, aiResponse });
       });
     } finally {
       await session.endSession();
@@ -120,7 +190,7 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
 
     // Nothing was written (a newer cycle owns the lesson) — announcing completion
     // here would tell the client to fetch content this job never produced.
-    if (!persisted) {
+    if (!result.persisted) {
       console.log(`[LessonWorker] Nothing persisted for lesson ${lessonId} (generation=${generationId}) — superseded.`);
       return { lessonId, status: 'SKIPPED' };
     }
@@ -133,6 +203,13 @@ export async function runAiLessonGeneration({ lessonId, courseId, userId, genera
       attempt: currentAttempt,
       maxAttempts,
     });
+
+    // The lesson's SSE stream now stays open past 'completed' so video slots can
+    // report in. With no slots to wait for, nothing else would ever close it —
+    // so say so immediately.
+    if (result.slotCount === 0) {
+      await publishEnrichmentCompleted(lessonId);
+    }
 
     // Only a user-requested generation looks ahead. Chaining off a lookahead would
     // walk the whole course and defeat lazy generation.
