@@ -57,6 +57,41 @@ const LESSON_WORKER_CONCURRENCY = Number(process.env.LESSON_WORKER_CONCURRENCY |
 
 /*
 |--------------------------------------------------------------------------
+| Video enrichment configuration
+|--------------------------------------------------------------------------
+|
+| Video resolution is an optional enrichment pass: a lesson is fully usable
+| without it. So unlike GEMINI_API_KEY, a missing YOUTUBE_API_KEY does not
+| throw at boot — the provider reports the slot UNAVAILABLE instead, and the
+| rest of the system carries on.
+*/
+
+
+const VIDEO_PROVIDER = process.env.VIDEO_PROVIDER || 'youtube';
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || null;
+
+const VIDEO_WORKER_CONCURRENCY = Number(process.env.VIDEO_WORKER_CONCURRENCY || 2);
+const VIDEO_JOB_ATTEMPTS = Number(process.env.VIDEO_JOB_ATTEMPTS || 3);
+
+// search.list costs 100 units against a 10,000/day default quota — roughly 100
+// searches per day for the whole application. The reserve keeps a slice back so
+// that exhausting the quota on enrichment can never starve anything added later.
+const YOUTUBE_DAILY_QUOTA_UNITS = Number(process.env.YOUTUBE_DAILY_QUOTA_UNITS || 10000);
+const YOUTUBE_QUOTA_RESERVE = Number(process.env.YOUTUBE_QUOTA_RESERVE || 1000);
+
+// Caching a resolved query is the single biggest quota saver, since lessons on
+// adjacent topics produce near-identical searches.
+const YOUTUBE_CACHE_TTL_DAYS = Number(process.env.YOUTUBE_CACHE_TTL_DAYS || 30);
+
+// Filter bounds: below the minimum is usually a short/teaser, above the maximum
+// is usually a full lecture or conference talk rather than a lesson aid.
+const YOUTUBE_MIN_DURATION_S = Number(process.env.YOUTUBE_MIN_DURATION_S || 180);
+const YOUTUBE_MAX_DURATION_S = Number(process.env.YOUTUBE_MAX_DURATION_S || 1800);
+
+
+
+/*
+|--------------------------------------------------------------------------
 | Outbox configuration
 |--------------------------------------------------------------------------
 */
@@ -121,6 +156,16 @@ export {
   COURSE_WORKER_CONCURRENCY,
 
   LESSON_WORKER_CONCURRENCY,
+
+  VIDEO_PROVIDER,
+  YOUTUBE_API_KEY,
+  VIDEO_WORKER_CONCURRENCY,
+  VIDEO_JOB_ATTEMPTS,
+  YOUTUBE_DAILY_QUOTA_UNITS,
+  YOUTUBE_QUOTA_RESERVE,
+  YOUTUBE_CACHE_TTL_DAYS,
+  YOUTUBE_MIN_DURATION_S,
+  YOUTUBE_MAX_DURATION_S,
 
   OUTBOX_POLL_INTERVAL_MS,
   OUTBOX_BATCH_SIZE,
