@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useLesson } from '../../hooks/useLesson';
+import { usePdfExport } from '../../hooks/usePdfExport';
 import { Button, Spinner, ErrorState } from '../../components/common';
 import { BlockRenderer } from '../../components/lesson/BlockRenderer';
 import { LessonToolbar } from '../../components/lesson/LessonToolbar';
@@ -58,6 +59,12 @@ export default function Learn() {
 
   const [isCompleting, setIsCompleting] = useState(false);
   const [completeError, setCompleteError] = useState(null);
+
+  const {
+    exportPdf,
+    isExporting,
+    error: exportError,
+  } = usePdfExport({ courseId, moduleId, lesson, quizByQuestionId });
 
   const goTo = useCallback(
     (target) => navigate(lessonPath(courseId, target.moduleId, target.lessonId)),
@@ -118,12 +125,21 @@ export default function Learn() {
       <header className="mt-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="text-2xl font-bold text-ink">{lesson.title}</h1>
-          <LessonToolbar />
+          {/* Export is only meaningful once there is content; the toolbar
+              disables any action without a handler. */}
+          <LessonToolbar
+            handlers={{ pdf: lesson.status === 'READY' ? exportPdf : undefined }}
+            busy={{ pdf: isExporting }}
+          />
         </div>
 
         {lesson.completed && (
           <p className="mt-2 text-sm font-medium text-success-text">✓ Completed</p>
         )}
+
+        {/* Inline rather than replacing the page: a failed export must not take
+            the lesson away from the reader. */}
+        {exportError && <p className="mt-2 text-sm text-danger-text">{exportError}</p>}
 
         {lesson.objectives?.length > 0 && (
           <section className="mt-5 rounded-lg border border-line bg-subtle p-4">
