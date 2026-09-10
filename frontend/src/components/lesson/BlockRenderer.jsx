@@ -16,9 +16,12 @@ import { McqBlock } from './blocks/McqBlock';
 export const BlockRenderer = ({ blocks = [], quizByQuestionId, onAnswer }) => (
   <>
     {blocks.map((block, index) => {
-      // MCQs carry a stable server-generated id; the rest are positional, and
-      // content is immutable once READY, so the index is a safe key for them.
-      const key = block.id ?? `${block.type}-${index}`;
+      // MCQs carry `id` and video blocks carry `slotId`, both stable and
+      // server-generated. The rest are positional, which is safe because content
+      // is immutable once READY. Keying a video by its slot rather than its
+      // position matters: an <iframe> keyed by index would remount — restarting
+      // playback — if block ordering ever changed.
+      const key = block.id ?? block.slotId ?? `${block.type}-${index}`;
 
       switch (block.type) {
         case 'heading':

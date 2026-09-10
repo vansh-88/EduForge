@@ -3,6 +3,7 @@ import { useApiResource } from './useApiResource';
 import { useGenerationStream } from './useGenerationStream';
 import {
   getLesson,
+  getVideoSlots,
   generateLesson,
   submitAnswer,
   completeLesson,
@@ -89,21 +90,85 @@ export const useLesson = ({ courseId, moduleId, lessonId, onDeleted }) => {
         onDeleted?.();
         return;
       }
-      // Ready or failed — either way MongoDB, not the event, is the authority
-      // on what the lesson now contains.
+
+      // Every slot has settled, and each one was already patched in as it
+      // landed. Refetching here would undo the whole point of doing that.
+      if (event.type === 'lesson_enrichment_completed') return;
+
+      // 'lesson_generation_failed', or 'stream_closed' — the latter meaning the
+      // server judged from MongoDB that nothing more is coming and hung up,
+      // which happens when the work finished between our fetch and the
+      // subscription. Either way the document moved without us, so re-read it.
       refetch();
     },
     [refetch, onDeleted]
   );
 
-  // Video slots settle after the content is already readable, and each one is a
-  // change to the lesson. The event only says *that* something changed; the
-  // refetch is what learns what it changed to, keeping MongoDB authoritative.
+  // Video slots settle after the content is already readable, so this fires at
+  // a reader who is mid-lesson. It must therefore change as little as possible:
+  // a full refetch would swap `data` wholesale and, because the page branches on
+  // isLoading, blank the lesson to a spinner and lose their scroll position.
+  //
+  // So only the affected blocks are replaced, in place. Every other block keeps
+  // its existing object reference, so React re-renders nothing else — a code
+  // block's copy state and a half-answered question both survive.
+  //
+  // The event says only *that* a slot changed; the slot read is what learns what
+  // it changed to, keeping MongoDB authoritative rather than trusting the event.
   const onEvent = useCallback(
-    (event) => {
-      if (event.type?.startsWith('video_slot_')) refetch();
+    async (event) => {
+      // Content just arrived for a lesson that was empty. A full re-read is
+      // right here — there is nothing on screen worth preserving, and this is
+      // no longer a terminal event (video slots keep publishing after it), so
+      // onTerminal will not fire for it.
+      if (event.type === 'lesson_generation_completed') {
+        refetch();
+        return;
+      }
+
+      if (!event.type?.startsWith('video_slot_')) return;
+
+      let slots;
+      let enrichment;
+      try {
+        ({ slots, enrichment } = await getVideoSlots(courseId, moduleId, lessonId));
+      } catch {
+        // A missed update is not worth disturbing the page over; the next event,
+        // or the next navigation, resolves it.
+        return;
+      }
+
+      const bySlotId = new Map(slots.map((slot) => [slot.slotId, slot]));
+
+      setData((previous) => {
+        if (!previous?.lesson) return previous;
+
+        return {
+          ...previous,
+          lesson: {
+            ...previous.lesson,
+            content: previous.lesson.content.map((block) => {
+              if (block.type !== 'video') return block;
+
+              const slot = bySlotId.get(block.slotId);
+              if (!slot) return block;
+
+              // Rebuilt rather than spread over the old block, so a field the
+              // new slot omits — `video`, once a slot is no longer READY —
+              // cannot linger from the previous state. Mirrors exactly what
+              // toVideoBlockDTO produces on the server; caption is the only
+              // part that comes from the content block rather than the slot.
+              return { type: 'video', caption: block.caption ?? null, ...slot };
+            }),
+            // Must be patched too, not just the blocks: `enabled` below is
+            // derived from it, so a stale count either closes the stream while
+            // slots are still resolving or holds it open forever.
+            enrichment,
+          },
+        };
+      });
     },
-    [refetch]
+    [courseId, moduleId, lessonId, setData, refetch]
   );
 
   // Enrichment outlives generation: a READY lesson whose video slots are still

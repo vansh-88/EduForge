@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-// Wire statuses after which nothing further will happen. The backend closes the
-// stream on all three, whether they arrive as a live event or as the opening
-// snapshot of a generation that already finished.
-const TERMINAL_STATUSES = new Set(['ready', 'failed', 'deleted']);
-
 const IDLE = {
   status: null,
   stage: null,
@@ -70,16 +65,6 @@ export const useGenerationStream = ({
     // effect, so a torn-down stream can never write state or fire a callback.
     let closed = false;
 
-    // onTerminal must fire exactly once per stream, and there are two ways to
-    // reach it (see below), so the two are deduped against each other.
-    let terminalFired = false;
-
-    const fireTerminal = (event) => {
-      if (terminalFired) return;
-      terminalFired = true;
-      refs.current.onTerminal?.(event);
-    };
-
     const abort = refs.current.subscribe({
       onEvent: (event) => {
         if (closed) return;
@@ -96,25 +81,26 @@ export const useGenerationStream = ({
           isDeleted: event.type === 'course_deleted',
         });
 
-        // A terminal *status* counts as terminal even when the event type is
-        // not. When generation finishes between the page's GET and this
-        // subscription, the backend's opening snapshot already says 'ready' and
-        // then closes — no completed-event is ever sent. Without this the page
-        // would hold a finished progress bar forever, waiting for an event that
-        // already happened.
-        if (TERMINAL_STATUSES.has(event.status)) fireTerminal(event);
-
-        // Raised AFTER the terminal check so a caller reacting to an event
-        // cannot be surprised by ordering. This is how a page learns about
-        // events that are not the aggregate's own lifecycle — a video slot
-        // settling, say — which onTerminal cannot deliver because it fires
-        // exactly once and is already spent by the time they arrive.
+        // Note there is deliberately no "terminal status" shortcut here.
+        //
+        // One used to exist, to catch a generation that finished between the
+        // page's fetch and this subscription — the opening snapshot says
+        // 'ready' and the server closes without ever publishing a completed
+        // event. That inference broke once enrichment was added: a lesson is
+        // 'ready' the moment its text is written, while its video slots keep
+        // resolving and publishing onto this same stream, so treating 'ready'
+        // as terminal ended the stream early and forced a needless refetch on
+        // every lesson that had a video pending.
+        //
+        // api/stream.js now reports the server's own close as terminal instead,
+        // which is the authoritative signal rather than a guess at one.
         refs.current.onEvent?.(event);
       },
 
+      // Already deduped by api/stream.js, which owns the once-per-stream rule.
       onTerminal: (event) => {
         if (closed) return;
-        fireTerminal(event);
+        refs.current.onTerminal?.(event);
       },
 
       onFatal: (error) => {

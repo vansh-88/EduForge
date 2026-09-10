@@ -44,6 +44,17 @@ const FATAL_MESSAGES = {
 function openStream(path, { onEvent, onTerminal, onFatal, terminalTypes }) {
   const controller = new AbortController();
 
+  // A stream ends once. Both routes to that — a terminal event type, and the
+  // server closing the connection — go through here so a terminal event
+  // followed by the close it causes does not fire the callback twice.
+  let terminalFired = false;
+
+  const fireTerminal = (event) => {
+    if (terminalFired) return;
+    terminalFired = true;
+    onTerminal?.(event);
+  };
+
   const run = async () => {
     let token;
     try {
@@ -100,7 +111,7 @@ function openStream(path, { onEvent, onTerminal, onFatal, terminalTypes }) {
         onEvent?.(event);
 
         if (terminalTypes.includes(event.type)) {
-          onTerminal?.(event);
+          fireTerminal(event);
           // The server closes on terminal events too, but aborting here means
           // we never race its close with a reconnect attempt.
           controller.abort();
@@ -119,8 +130,19 @@ function openStream(path, { onEvent, onTerminal, onFatal, terminalTypes }) {
       },
 
       onclose() {
-        // The server closed cleanly after a terminal event. Nothing to do —
-        // returning without throwing prevents a reconnect.
+        // The server closed the connection. Returning without throwing prevents
+        // a reconnect.
+        //
+        // A close with no terminal event before it is itself the signal that
+        // nothing more is coming: the server evaluates terminality against
+        // MongoDB when the stream opens, so a generation that finished between
+        // the caller's fetch and this subscription is answered with a snapshot
+        // and an immediate close, and no completed-event is ever published.
+        // Treating the close as terminal handles that precisely — the caller
+        // does not have to infer it from a status, which stopped being reliable
+        // once a lesson could be READY while its video slots were still
+        // resolving.
+        fireTerminal({ type: 'stream_closed' });
       },
     }).catch(() => {
       // Abort and fatal both land here. Both were already handled above; this

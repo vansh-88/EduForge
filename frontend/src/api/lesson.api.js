@@ -19,6 +19,17 @@ export const getLesson = async (courseId, moduleId, lessonId) => {
   return response.data.data;
 };
 
+/**
+ * Slot state only: { slots: [{ slotId, status, video? }], enrichment }.
+ *
+ * Used to refresh a resolving video without refetching the whole lesson, which
+ * would replace content the reader is partway through.
+ */
+export const getVideoSlots = async (courseId, moduleId, lessonId) => {
+  const response = await apiClient.get(`${lessonPath(courseId, moduleId, lessonId)}/video-slots`);
+  return response.data.data;
+};
+
 export const generateLesson = async (courseId, moduleId, lessonId) => {
   const response = await apiClient.post(
     lessonPath(courseId, moduleId, lessonId),

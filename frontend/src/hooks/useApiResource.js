@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * One GET-shaped resource: fetch on mount, refetch on demand, patch locally.
  *
  * Generalized from the original useDashboard, which every screen was otherwise
- * going to copy. Three parts are deliberate:
+ * going to copy. Four parts are deliberate:
  *
  * - `reloadKey` rather than calling the fetcher from `refetch` directly. The
  *   fetch stays owned by the effect, so there is exactly one code path that
@@ -14,9 +14,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *   never handed to axios. StrictMode mounts twice in dev and the discarded run
  *   would otherwise write state after unmount.
  *
- * - Loading is reset during render when `deps` change, not inside the effect.
- *   Setting it in the effect body would render one frame of stale data labelled
- *   "loaded"; this is React's documented adjust-state-during-render pattern.
+ * - `isLoading` means "there is nothing valid to show", NOT "a request is in
+ *   flight". Conflating the two makes every background refresh blank the page:
+ *   a video slot resolving would replace a lesson the reader is halfway through
+ *   with a spinner, losing their scroll position and any local block state.
+ *   `isRefreshing` covers the in-flight case for callers that want a hint.
+ *
+ * - A failed *background* refresh does not surface as `error`. Pages render an
+ *   error state instead of their content, so a network blip during a refresh
+ *   would throw away a perfectly readable page. It lands in `refreshError`.
  *
  * `deps` are the scalar values the fetcher closes over (a courseId, a page
  * number, a search string) — pass values, not objects, since they are compared
@@ -26,7 +32,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export const useApiResource = (fetcher, deps = []) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [refreshError, setRefreshError] = useState(null);
+  const [isFetching, setIsFetching] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
 
   // NUL as the separator: it cannot occur inside an id or a search string, so
@@ -34,19 +41,24 @@ export const useApiResource = (fetcher, deps = []) => {
   // would collapse them and silently skip a refetch.
   const depsKey = deps.join('\u0000');
 
+  // Which deps the data in hand was fetched for. This is what distinguishes
+  // "refreshing this resource" (data still valid, keep showing it) from
+  // "switching to a different resource" (data now belongs to something else).
+  const [dataKey, setDataKey] = useState(null);
+
   // Adjusting state during render: when the caller asks for a *different*
-  // resource, the previous one's data must stop being presented as current
-  // immediately, in the same render that changed the deps.
+  // resource, the previous one's error must not carry over into it.
   const [renderedKey, setRenderedKey] = useState(depsKey);
   if (renderedKey !== depsKey) {
     setRenderedKey(depsKey);
-    setIsLoading(true);
     setError(null);
+    setRefreshError(null);
   }
 
+  const hasCurrentData = data !== null && dataKey === depsKey;
+
   const refetch = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
+    setIsFetching(true);
     setReloadKey((key) => key + 1);
   }, []);
 
@@ -58,6 +70,13 @@ export const useApiResource = (fetcher, deps = []) => {
     fetcherRef.current = fetcher;
   });
 
+  // Read at call time so the fetch effect does not depend on it, which would
+  // restart the request every time data arrives.
+  const hasCurrentDataRef = useRef(hasCurrentData);
+  useEffect(() => {
+    hasCurrentDataRef.current = hasCurrentData;
+  });
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -66,20 +85,37 @@ export const useApiResource = (fetcher, deps = []) => {
         const result = await fetcherRef.current();
         if (controller.signal.aborted) return;
         setData(result);
+        setDataKey(depsKey);
         setError(null);
+        setRefreshError(null);
       } catch (err) {
         if (controller.signal.aborted) return;
-        setError(err);
+
+        // Only destroy the view when there is nothing to fall back on.
+        if (hasCurrentDataRef.current) setRefreshError(err);
+        else setError(err);
       } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
+        if (!controller.signal.aborted) setIsFetching(false);
       }
     })();
 
     return () => controller.abort();
   }, [reloadKey, depsKey]);
 
-  // Exposed so mutations that already return the updated state — answering an
-  // MCQ, completing a lesson — can patch in place instead of refetching a whole
-  // lesson to learn something the response already told us.
-  return { data, isLoading, error, refetch, setData };
+  return {
+    data,
+    // Nothing to show yet: first load, or the deps changed so what we hold
+    // belongs to a different resource. Deliberately false once a fetch has
+    // settled with no data, so an error branch is reachable rather than
+    // spinning forever.
+    isLoading: isFetching && !hasCurrentData,
+    isRefreshing: isFetching,
+    error,
+    refreshError,
+    refetch,
+    // Exposed so mutations that already return the updated state — answering an
+    // MCQ, completing a lesson — can patch in place instead of refetching a
+    // whole resource to learn something the response already told us.
+    setData,
+  };
 };
