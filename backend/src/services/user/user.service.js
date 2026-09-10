@@ -1,5 +1,5 @@
 import {
-  User, Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, IdempotencyKey,
+  User, Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, IdempotencyKey, VideoSlot,
 } from '../../models/index.js';
 import { publishCourseDeleted } from '../realtime/generationEvents.js';
 import { destroyAvatar, avatarPublicId } from '../media/avatar.service.js';
@@ -31,6 +31,9 @@ export async function deleteUserAccount(user) {
     // course that is about to stop existing.
     CourseProgress.deleteMany({ $or: [{ user: userId }, { course: { $in: courseIds } }] }),
     LessonQuizAttempt.deleteMany({ $or: [{ user: userId }, { course: { $in: courseIds } }] }),
+
+    // Keyed by course, not user — a slot belongs to the content, not the reader.
+    VideoSlot.deleteMany({ course: { $in: courseIds } }),
 
     // PROCESSING is included because the outbox publisher rescues stale rows after
     // OUTBOX_LOCK_TIME_MS and would otherwise re-dispatch work for deleted documents.

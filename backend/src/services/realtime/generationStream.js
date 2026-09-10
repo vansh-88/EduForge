@@ -11,9 +11,13 @@ const HEARTBEAT_MS = 15000;
  *   id            the aggregate id (snapshot key, and the snapshot event's name)
  *   channels      every channel to watch — the aggregate's own generation channel
  *                 plus the course-deleted fan-out, so one publish can close it
- *   loadSnapshot  async () => ({ status, stage, progress, attempt, maxAttempts, lastError }) | null
- *                 read AFTER subscribing, so nothing published in between is lost
- *   isTerminal    (mongoStatus) => boolean
+ *   loadSnapshot  async () => ({ status, stage, progress, attempt, maxAttempts, lastError, ... }) | null
+ *                 read AFTER subscribing, so nothing published in between is lost.
+ *                 May carry extra fields for isTerminal's use.
+ *   isTerminal    (snapshot) => boolean — receives the whole snapshot, not just a
+ *                 status, because "nothing more is coming" is not always a property
+ *                 of the aggregate alone: a lesson can be READY while its video
+ *                 slots are still resolving and publishing to this same stream.
  *   terminalTypes event types that end the stream
  *
  * Assumes authorization already happened — by the time this runs, headers are about
@@ -89,7 +93,7 @@ export async function streamGeneration(req, res, { kind, id, channels, loadSnaps
   snapshotSent = true;
 
   // Already terminal — nothing further will ever be published for this aggregate.
-  if (isTerminal(snapshot.status)) return cleanup();
+  if (isTerminal(snapshot)) return cleanup();
 
   // 3. Flush anything that arrived while the snapshot was being read.
   const pending = buffered;

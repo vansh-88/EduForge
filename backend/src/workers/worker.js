@@ -3,6 +3,7 @@ import { connectDB } from '../config/db.config.js';
 import { workerConfig } from '../config/worker.config.js';
 import { courseWorker } from './course.worker.js';
 import { lessonWorker } from './lesson.worker.js';
+import { videoWorker } from './video.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
 import { redisConnection } from '../config/redis.config.js';
 
@@ -24,8 +25,10 @@ async function startWorkers() {
     startOutboxPublisher();
     console.log('✅ Outbox publisher started');
 
-    // 4. Start the course generation worker
+    // 4. Workers start on import; log what is now listening.
     console.log('✅ Course generation worker started');
+    console.log('✅ Lesson generation worker started');
+    console.log('✅ Video resolution worker started');
   }
   catch (error) {
     console.error('❌ Worker startup failed:', error);
@@ -50,6 +53,8 @@ async function gracefulShutdown(signal) {
     console.log('✅ CourseWorker stopped.');
     await lessonWorker.close();
     console.log('✅ LessonWorker stopped.');
+    await videoWorker.close();
+    console.log('✅ VideoWorker stopped.');
 
     // 3. quit Redis connection
     redisConnection.quit();

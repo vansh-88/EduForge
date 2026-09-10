@@ -34,7 +34,8 @@ export const streamCourseGenerationEvents = async (req, res) => {
     channels: [channelFor('course', courseId), courseDeletedChannel(courseId)],
     loadSnapshot: () =>
       Course.findById(courseId).select('status stage progress attempts maxAttempts lastError').lean(),
-    isTerminal: (status) => TERMINAL_STATUSES.includes(status),
+    // A course has no enrichment pass, so its own status is the whole story.
+    isTerminal: (snapshot) => TERMINAL_STATUSES.includes(snapshot.status),
     terminalTypes: TERMINAL_EVENT_TYPES,
   });
 };

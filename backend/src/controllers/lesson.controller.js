@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { requestLessonGeneration, loadAuthorizedLesson, ensureNextLessonGenerated } from '../services/lesson/lesson.service.js';
-import { Lesson, Module } from '../models/index.js';
+import { Lesson, Module, VideoSlot } from '../models/index.js';
 import { toLessonDTO } from '../serializers/lesson.serializer.js';
 import { getOrCreateProgress, touchLastVisited, markLessonComplete } from '../services/progress/progress.service.js';
 import { submitAnswer, buildQuizState, getAttempt } from '../services/quiz/quiz.service.js';
@@ -96,11 +96,14 @@ export const getLesson = async (req, res) => {
   const { module } = lesson;
   const { course } = module;
 
-  const [previous, next, progress, attempt] = await Promise.all([
+  const [previous, next, progress, attempt, videoSlots] = await Promise.all([
     findAdjacentLesson(lesson, module, course, -1),
     findAdjacentLesson(lesson, module, course, 1),
     getOrCreateProgress(userId, courseId),
     getAttempt(userId, lesson._id),
+    // Resolution state for this lesson's video blocks. Joined here rather than
+    // embedded in the content so a slot can keep its own lifecycle.
+    VideoSlot.find({ lesson: lesson._id }).lean(),
   ]);
 
   // Read-position tracking must never fail the request it rides along with.
@@ -121,7 +124,7 @@ export const getLesson = async (req, res) => {
   return res.status(200).json({
     success: true,
     data: {
-      lesson: toLessonDTO(lesson, { completed }),
+      lesson: toLessonDTO(lesson, { completed, videoSlots }),
       quiz: buildQuizState(lesson, attempt),
       navigation: { previous, next },
     },

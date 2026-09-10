@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration, retryCourseGeneration as retryCourseGenerationService } from '../services/course/course.service.js';
-import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent } from '../models/index.js';
+import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot } from '../models/index.js';
 import mongoose from 'mongoose';
 import { computeProgress, getOrCreateProgress } from '../services/progress/progress.service.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
@@ -214,6 +214,9 @@ export const deleteCourse = async (req, res) => {
     Module.deleteMany({ course: course._id }),
     CourseProgress.deleteMany({ course: course._id }),
     LessonQuizAttempt.deleteMany({ course: course._id }),
+    // Slots are denormalized with their course id precisely so this is one
+    // query rather than a walk down through modules and lessons.
+    VideoSlot.deleteMany({ course: course._id }),
     // Drop generation work not yet dispatched, for the course and for every lesson
     // (lesson events are keyed by lessonId, not courseId). PROCESSING is included
     // because the publisher rescues stale PROCESSING rows after OUTBOX_LOCK_TIME_MS
