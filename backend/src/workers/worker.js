@@ -5,6 +5,7 @@ import { courseWorker } from './course.worker.js';
 import { lessonWorker } from './lesson.worker.js';
 import { videoWorker } from './video.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
+import { startWorkerHeartbeat, stopWorkerHeartbeat } from './heartbeat.js';
 import { redisConnection } from '../config/redis.config.js';
 
 
@@ -29,6 +30,11 @@ async function startWorkers() {
     console.log('✅ Course generation worker started');
     console.log('✅ Lesson generation worker started');
     console.log('✅ Video resolution worker started');
+
+    // 5. Report liveness to the API's readiness probe. Started last, so it only
+    // ever reports a process that is fully wired up.
+    startWorkerHeartbeat();
+    console.log('✅ Worker heartbeat started');
   }
   catch (error) {
     console.error('❌ Worker startup failed:', error);
@@ -45,6 +51,11 @@ async function gracefulShutdown(signal) {
   try {
 
     // 1. Stop the outbox publisher
+    // Stop advertising liveness first, so the API stops routing readiness green
+    // while this process is on its way down.
+    await stopWorkerHeartbeat();
+    console.log('✅ Worker heartbeat stopped.');
+
     await stopOutboxPublisher();
     console.log('✅ Outbox publisher stopped.');
 

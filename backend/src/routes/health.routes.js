@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { redisConnection } from '../config/redis.config.js';
 import { courseGenerationQueue } from '../services/queue/course.queue.js';
 import { lessonGenerationQueue } from '../services/queue/lesson.queue.js';
+import { videoResolutionQueue } from '../services/queue/video.queue.js';
+import { readWorkerHeartbeat } from '../workers/heartbeat.js';
 
 
 export const healthRouter = Router();
@@ -15,7 +17,7 @@ healthRouter.get('/health', (req, res) => {
 });
 
 
-// Checks Mongo, Redis, and that the separate worker process is actually up
+// Checks Mongo, Redis, and that the separate worker process is actually able to work
 healthRouter.get('/ready', async (req, res) => {
   const checks = {
     mongo: mongoose.connection.readyState === 1,
@@ -27,15 +29,41 @@ healthRouter.get('/ready', async (req, res) => {
   // is configured with maxRetriesPerRequest: null (retries forever), so issuing
   // a command against a dead connection risks hanging this check instead of
   // failing it fast.
+  let workerDetail = { reason: 'redis unavailable' };
+
   if (checks.redis) {
-    try {
-      const [courseWorkers, lessonWorkers] = await Promise.all([
+    // Two independent signals, and BOTH are required.
+    //
+    // getWorkersCount proves a worker is attached to each queue. It does NOT
+    // prove that worker can do anything: one that has lost MongoDB still
+    // answers this check while being unable to generate a single lesson. That
+    // exact state has been observed here — a transient DNS failure cut the
+    // worker off from Atlas while this endpoint reported it healthy.
+    //
+    // The heartbeat closes that gap by reporting what only the worker process
+    // can know: the state of its own MongoDB connection.
+    const [queueAttached, heartbeat] = await Promise.all([
+      Promise.all([
         courseGenerationQueue.getWorkersCount(),
         lessonGenerationQueue.getWorkersCount(),
-      ]);
-      checks.worker = courseWorkers > 0 && lessonWorkers > 0;
-    } catch {
-      checks.worker = false;
+        videoResolutionQueue.getWorkersCount(),
+      ])
+        .then(([course, lesson, video]) => course > 0 && lesson > 0 && video > 0)
+        .catch(() => false),
+
+      readWorkerHeartbeat(),
+    ]);
+
+    if (!queueAttached) {
+      workerDetail = { reason: 'no worker attached to one or more queues' };
+    } else if (!heartbeat) {
+      workerDetail = { reason: 'no recent worker heartbeat' };
+    } else if (!heartbeat.mongo) {
+      // The case this whole mechanism exists for.
+      workerDetail = { reason: 'worker has lost its MongoDB connection', pid: heartbeat.pid };
+    } else {
+      checks.worker = true;
+      workerDetail = { pid: heartbeat.pid, heartbeatAgeMs: heartbeat.ageMs };
     }
   }
 
@@ -45,5 +73,8 @@ healthRouter.get('/ready', async (req, res) => {
     success: allReady,
     message: allReady ? 'All systems ready' : 'One or more systems not ready',
     checks,
+    // Says *why* the worker is unhealthy, so a failing probe is diagnosable
+    // without reading the worker's logs.
+    worker: workerDetail,
   });
 });
