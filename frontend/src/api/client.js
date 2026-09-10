@@ -36,13 +36,24 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    let errorMessage = 'Network error or server is unreachable';
-
-    if (error.response) {
-      errorMessage = error.response.data?.error || `Server error: ${error.response.status}`;
+    if (!error.response) {
+      const networkError = new Error('Network error or server is unreachable');
+      networkError.status = null;
+      return Promise.reject(networkError);
     }
 
-    return Promise.reject(new Error(errorMessage));
+    const { status, data } = error.response;
+    const normalized = new Error(data?.error || `Server error: ${status}`);
+
+    // Carried through so callers can branch without re-parsing the response:
+    // `code` distinguishes RATE_LIMITED / LESSON_NOT_READY etc., `status`
+    // separates a missing course (404) from a real failure, and `issues` holds
+    // the per-field Zod messages on a 400.
+    normalized.status = status;
+    normalized.code = data?.code ?? null;
+    normalized.issues = data?.issues ?? null;
+
+    return Promise.reject(normalized);
   }
 );
 

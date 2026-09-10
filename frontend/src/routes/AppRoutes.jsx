@@ -27,7 +27,12 @@ export const AppRoutes = () => {
           <Route path="/generate" element={<GenerateCourse />} />
           <Route path="/courses" element={<Courses />} />
           <Route path="/courses/:courseId" element={<CourseOverview />} />
-          <Route path="/courses/:courseId/learn/:lessonId" element={<Learn />} />
+          {/* moduleId is part of the path because the lesson API is addressed
+              through its module — lessonId alone cannot be fetched. */}
+          <Route
+            path="/courses/:courseId/modules/:moduleId/lessons/:lessonId"
+            element={<Learn />}
+          />
           <Route path="/profile" element={<Profile />} />
 
         </Route>
