@@ -61,7 +61,7 @@ export const CourseGrid = ({
   return (
     <div className={gridClass}>
       {courses.map((course) => (
-        <CourseCard key={course.id ?? course._id} course={course} />
+        <CourseCard key={course.id} course={course} />
       ))}
     </div>
   );

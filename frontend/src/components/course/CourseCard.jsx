@@ -8,13 +8,11 @@ import { coursePath } from '../../utils/paths';
 /**
  * One course, wherever a course is listed.
  *
- * The dashboard serializes ids as `id` while the course list returns raw
- * documents with `_id`, so both are accepted rather than normalizing at every
- * call site. Title is null until generation produces one — the user's original
- * prompt stands in until then.
+ * Title is null until generation produces one — the user's original prompt
+ * stands in until then.
  */
 export const CourseCard = ({ course }) => {
-  const courseId = course.id ?? course._id;
+  const courseId = course.id;
   const progress = course.progress;
   const createdAt = formatRelativeDate(course.createdAt);
 

@@ -2,21 +2,10 @@ import { Course, CourseProgress, Lesson } from '../models/index.js';
 import { toUserDTO } from '../serializers/user.serializer.js';
 import { computeProgress } from '../services/progress/progress.service.js';
 import { computeUserStats } from '../services/stats/stats.service.js';
+import { toCourseCardDTO } from '../serializers/course.serializer.js';
 
 const CONTINUE_LIMIT = 5;
 const RECENT_LIMIT = 5;
-
-const toCourseCard = (course) => ({
-  id: String(course._id),
-  title: course.title ?? null,
-  query: course.query,
-  description: course.description ?? null,
-  difficulty: course.difficulty,
-  status: course.status,
-  moduleCount: course.moduleCount,
-  lessonCount: course.lessonCount,
-  createdAt: course.createdAt,
-});
 
 const COURSE_CARD_FIELDS = 'title query description difficulty status moduleCount lessonCount createdAt';
 
@@ -59,7 +48,7 @@ async function buildContinueLearning(userId) {
     const lesson = row.lastVisitedLesson ? lessonById.get(String(row.lastVisitedLesson)) : null;
 
     return [{
-      course: toCourseCard(course),
+      course: toCourseCardDTO(course),
       progress: computeProgress(course, row),
       // Null when the lesson is unresolvable. Not reachable today — lessons only exist
       // once a course is READY and a READY course is terminal — but the lookup above
@@ -98,7 +87,7 @@ async function buildRecentCourses(userId) {
   const progressByCourse = new Map(progressRows.map((row) => [String(row.course), row]));
 
   return courses.map((course) => ({
-    ...toCourseCard(course),
+    ...toCourseCardDTO(course),
     progress: computeProgress(course, progressByCourse.get(String(course._id))),
   }));
 }

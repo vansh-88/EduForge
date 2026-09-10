@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { computeProgress, getOrCreateProgress } from '../services/progress/progress.service.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { publishCourseDeleted } from '../services/realtime/generationEvents.js';
+import { toCourseCardDTO, toCourseDetailDTO } from '../serializers/course.serializer.js';
 
 
 function hashRequest(body) {
@@ -84,7 +85,7 @@ export const listCourses = async (req, res) => {
   const progressByCourse = new Map(progressDocs.map((doc) => [String(doc.course), doc]));
 
   const coursesWithProgress = courses.map((course) => ({
-    ...course,
+    ...toCourseCardDTO(course),
     progress: computeProgress(course, progressByCourse.get(String(course._id))),
   }));
 
@@ -151,7 +152,7 @@ export const getCourseById = async (req, res) => {
 
   return res.status(200).json({
     success: true,
-    data: { course, progress: progressSummary, completedLessonIds },
+    data: { course: toCourseDetailDTO(course), progress: progressSummary, completedLessonIds },
   });
 };
 

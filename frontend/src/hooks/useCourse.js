@@ -13,36 +13,13 @@ export const isCourseGenerating = (course) => IN_FLIGHT.has(course?.status);
 /**
  * A course plus its live generation progress.
  *
- * getCourseById returns a raw lean document — `_id`, not `id` — while the
- * dashboard returns `id`. Normalizing here means components see one shape and
- * the `id ?? _id` fallbacks can eventually go away.
+ * Ids arrive already serialized as `id` strings — every course endpoint goes
+ * through toCourseCardDTO/toCourseDetailDTO — so there is nothing to normalize
+ * here.
  */
-const normalize = (payload) => {
-  if (!payload?.course) return null;
-
-  const { course, progress, completedLessonIds } = payload;
-
-  return {
-    completedLessonIds: completedLessonIds ?? [],
-    course: {
-      ...course,
-      id: String(course._id),
-      modules: (course.modules ?? []).map((module) => ({
-        ...module,
-        id: String(module._id),
-        lessons: (module.lessons ?? []).map((lesson) => ({
-          ...lesson,
-          id: String(lesson._id),
-        })),
-      })),
-    },
-    progress,
-  };
-};
-
 export const useCourse = (courseId) => {
   const { data, isLoading, error, refetch } = useApiResource(
-    async () => normalize(await getCourse(courseId)),
+    () => getCourse(courseId),
     [courseId]
   );
 
