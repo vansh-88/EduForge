@@ -20,9 +20,10 @@ export const isCourseGenerating = (course) => IN_FLIGHT.has(course?.status);
 const normalize = (payload) => {
   if (!payload?.course) return null;
 
-  const { course, progress } = payload;
+  const { course, progress, completedLessonIds } = payload;
 
   return {
+    completedLessonIds: completedLessonIds ?? [],
     course: {
       ...course,
       id: String(course._id),
@@ -69,6 +70,7 @@ export const useCourse = (courseId) => {
   return {
     course,
     progress: data?.progress ?? null,
+    completedLessonIds: data?.completedLessonIds ?? [],
     generation,
     isGenerating: isCourseGenerating(course),
     isLoading,

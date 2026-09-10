@@ -142,9 +142,16 @@ export const getCourseById = async (req, res) => {
   const progress = await getOrCreateProgress(userId, courseId);
   const progressSummary = computeProgress(course, progress);
 
+  // computeProgress returns a *count* of completed lessons, which is all the
+  // list and dashboard views need. The overview renders the curriculum itself,
+  // so it needs to know which specific lessons are done — and this handler
+  // already holds the progress document, making it free here and a per-lesson
+  // lookup anywhere else.
+  const completedLessonIds = (progress.completedLessons ?? []).map(String);
+
   return res.status(200).json({
     success: true,
-    data: { course, progress: progressSummary },
+    data: { course, progress: progressSummary, completedLessonIds },
   });
 };
 
