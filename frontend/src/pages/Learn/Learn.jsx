@@ -72,6 +72,15 @@ export default function Learn() {
   );
 
   const handleComplete = useCallback(async () => {
+    // Revisiting a finished lesson: there is nothing to record, so this is a
+    // plain move to the next one. markLessonComplete is idempotent server-side,
+    // but calling it anyway would spend a round trip — and a spinner — to change
+    // nothing.
+    if (lesson?.completed) {
+      if (navigation?.next) goTo(navigation.next);
+      return;
+    }
+
     setIsCompleting(true);
     setCompleteError(null);
     try {
@@ -84,7 +93,7 @@ export default function Learn() {
     } finally {
       setIsCompleting(false);
     }
-  }, [markComplete, navigation, goTo]);
+  }, [lesson?.completed, markComplete, navigation, goTo]);
 
   if (isLoading) {
     return (
@@ -220,25 +229,31 @@ export default function Learn() {
         )}
 
         <div className="flex items-center gap-2">
+          {/* Skipping means "move on WITHOUT recording this as done", so it only
+              belongs on a lesson that is not finished yet. Shown alongside a
+              completed lesson it did exactly what the primary button did, which
+              is what made the pair confusing. */}
+          {navigation?.next && !lesson.completed && (
+            <Button variant="secondary" onClick={() => goTo(navigation.next)}>
+              Skip for now
+            </Button>
+          )}
+
           {/* Completing a lesson the reader cannot have read would inflate their
               progress, which the backend rejects with LESSON_NOT_READY anyway. */}
           <Button
             onClick={handleComplete}
-            disabled={!isReady}
+            disabled={!isReady || (lesson.completed && !navigation?.next)}
             loading={isCompleting}
           >
-            {navigation?.next
-              ? lesson.completed
+            {lesson.completed
+              ? navigation?.next
                 ? 'Next lesson →'
-                : 'Mark complete & continue'
-              : 'Mark complete'}
+                : 'Completed'
+              : navigation?.next
+                ? 'Mark complete & continue'
+                : 'Mark complete'}
           </Button>
-
-          {navigation?.next && lesson.completed && (
-            <Button variant="secondary" onClick={() => goTo(navigation.next)}>
-              Skip →
-            </Button>
-          )}
         </div>
       </nav>
     </article>
