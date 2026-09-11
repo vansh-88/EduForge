@@ -51,6 +51,43 @@ export const submitAnswer = async (courseId, moduleId, lessonId, questionId, sel
   return response.data.data;
 };
 
+/**
+ * Asks for a Hinglish rendering of this lesson, generating it if there isn't one.
+ *
+ * Returns the flat body `{ success, message, lessonId, language, status, ... }`.
+ * A 200 carries `content` and means it was already cached; a 202 means a job was
+ * started (or one was already running) and the answer arrives over SSE.
+ *
+ * Idempotent like `generateLesson` — this spends a real AI call, so repeated
+ * clicks must not become repeated jobs.
+ */
+export const requestTranslation = async (courseId, moduleId, lessonId, language = 'hinglish') => {
+  const response = await apiClient.post(
+    `${lessonPath(courseId, moduleId, lessonId)}/translations`,
+    { language },
+    idempotent()
+  );
+
+  return response.data;
+};
+
+/**
+ * Reads a translation: `{ lessonId, language, status, content, generation }`.
+ *
+ * `content` is null unless status is READY. `NOT_REQUESTED` means no one has
+ * asked for this language yet; `STALE` means one exists but was derived from a
+ * version of the lesson that has since been regenerated.
+ *
+ * Side-effect free — unlike the POST it can never start a job.
+ */
+export const getTranslation = async (courseId, moduleId, lessonId, language = 'hinglish') => {
+  const response = await apiClient.get(
+    `${lessonPath(courseId, moduleId, lessonId)}/translations/${language}`
+  );
+
+  return response.data.data;
+};
+
 export const completeLesson = async (courseId, moduleId, lessonId) => {
   const response = await apiClient.post(`${lessonPath(courseId, moduleId, lessonId)}/complete`);
   return response.data.data;

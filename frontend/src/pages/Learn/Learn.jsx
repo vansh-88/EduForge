@@ -1,12 +1,13 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useLesson } from '../../hooks/useLesson';
+import { useLessonTranslation } from '../../hooks/useLessonTranslation';
 import { usePdfExport } from '../../hooks/usePdfExport';
 import { Button, Spinner, ErrorState } from '../../components/common';
 import { BlockRenderer } from '../../components/lesson/BlockRenderer';
 import { LessonToolbar } from '../../components/lesson/LessonToolbar';
 import { GenerationProgress } from '../../components/generation/GenerationProgress';
-import { LESSON_STAGE_LABELS } from '../../components/generation/stageLabels';
+import { LESSON_STAGE_LABELS, TRANSLATION_STAGE_LABELS } from '../../components/generation/stageLabels';
 import { coursePath, lessonPath } from '../../utils/paths';
 
 const QuizSummary = ({ quiz }) => {
@@ -60,11 +61,76 @@ export default function Learn() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [completeError, setCompleteError] = useState(null);
 
+  const translation = useLessonTranslation({ courseId, moduleId, lessonId });
+
+  const [language, setLanguage] = useState('english');
+
+  // Each lesson is translated separately, so arriving at a new one starts in
+  // English regardless of what the last one was showing. Reset in the same
+  // render that changed the lesson, before the old language is painted against
+  // new content.
+  const [renderedLessonId, setRenderedLessonId] = useState(lessonId);
+  if (renderedLessonId !== lessonId) {
+    setRenderedLessonId(lessonId);
+    setLanguage('english');
+  }
+
+  const showingHinglish = language === 'hinglish' && Boolean(translation.content);
+
+  /**
+   * The blocks actually rendered.
+   *
+   * Video blocks come from the English lesson rather than the translation: only
+   * their caption is translated, while the resolved video itself lives on the
+   * English block, which the lesson's SSE stream has been patching in place.
+   * Taking the translated block wholesale would throw that away and show a
+   * spinner for a video that resolved minutes ago.
+   */
+  const displayContent = useMemo(() => {
+    if (!showingHinglish) return lesson?.content ?? [];
+
+    const englishVideos = new Map(
+      (lesson?.content ?? [])
+        .filter((block) => block.type === 'video')
+        .map((block) => [block.slotId, block])
+    );
+
+    return translation.content.map((block) => {
+      if (block.type !== 'video') return block;
+
+      const english = englishVideos.get(block.slotId);
+      if (!english) return block;
+
+      return { ...english, caption: block.caption ?? english.caption ?? null };
+    });
+  }, [showingHinglish, lesson?.content, translation.content]);
+
+  // Toggles once a translation exists; asks for one the first time.
+  const handleHinglish = useCallback(() => {
+    if (translation.content) {
+      setLanguage((current) => (current === 'hinglish' ? 'english' : 'hinglish'));
+      return;
+    }
+
+    // Switch optimistically: the render below still shows English until the
+    // content lands, and this way the view flips the moment it does.
+    setLanguage('hinglish');
+    translation.request();
+  }, [translation]);
+
   const {
     exportPdf,
     isExporting,
     error: exportError,
-  } = usePdfExport({ courseId, moduleId, lesson, quizByQuestionId });
+  } = usePdfExport({
+    courseId,
+    moduleId,
+    // The export is a snapshot of what is on screen, so a reader who exports
+    // while reading Hinglish gets the Hinglish PDF. Safe with jsPDF's built-in
+    // fonts because the translation is romanised — see pdf/pdfText.js.
+    lesson: lesson && showingHinglish ? { ...lesson, content: displayContent } : lesson,
+    quizByQuestionId,
+  });
 
   const goTo = useCallback(
     (target) => navigate(lessonPath(courseId, target.moduleId, target.lessonId)),
@@ -137,8 +203,13 @@ export default function Learn() {
           {/* Export is only meaningful once there is content; the toolbar
               disables any action without a handler. */}
           <LessonToolbar
-            handlers={{ pdf: lesson.status === 'READY' ? exportPdf : undefined }}
-            busy={{ pdf: isExporting }}
+            handlers={{
+              pdf: lesson.status === 'READY' ? exportPdf : undefined,
+              // Nothing to translate until there is content.
+              hinglish: lesson.status === 'READY' ? handleHinglish : undefined,
+            }}
+            busy={{ pdf: isExporting, hinglish: translation.isPending }}
+            active={{ hinglish: showingHinglish }}
           />
         </div>
 
@@ -199,11 +270,41 @@ export default function Learn() {
         </div>
       )}
 
+      {/* Inline, above the content, because the lesson stays readable in English
+          the whole time a translation is being produced. */}
+      {isReady && translation.isPending && (
+        <div className="mt-6">
+          <GenerationProgress
+            generation={translation.generation}
+            stageLabels={TRANSLATION_STAGE_LABELS}
+            title="Translating this lesson to Hinglish"
+            idleLabel="Getting started"
+          />
+        </div>
+      )}
+
+      {isReady && translation.error && !translation.isPending && (
+        <div className="mt-6">
+          <ErrorState
+            title="We couldn't translate this lesson"
+            message={translation.error}
+          />
+          <Button className="mt-4" variant="secondary" onClick={translation.retry}>
+            Try again
+          </Button>
+        </div>
+      )}
+
       {isReady && (
         <>
           <div className="mt-8">
             <BlockRenderer
-              blocks={lesson.content}
+              // Remounts on a language switch so every block renders from the
+              // new content rather than diffing across two languages — which
+              // would leave a code block's "Copied" state and a half-typed
+              // answer attached to text they no longer belong to.
+              key={showingHinglish ? 'hinglish' : 'english'}
+              blocks={displayContent}
               quizByQuestionId={quizByQuestionId}
               onAnswer={answerQuestion}
             />

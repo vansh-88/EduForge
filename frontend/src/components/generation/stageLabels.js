@@ -9,6 +9,13 @@ export const COURSE_STAGE_LABELS = {
   completed: 'Done',
 };
 
+export const TRANSLATION_STAGE_LABELS = {
+  queued: 'Queued — waiting for a free worker',
+  translating: 'Rewriting this lesson in Hinglish',
+  saving: 'Saving the translation',
+  completed: 'Done',
+};
+
 export const LESSON_STAGE_LABELS = {
   queued: 'Queued — waiting for a free worker',
   preparing_context: 'Reading the surrounding lessons',

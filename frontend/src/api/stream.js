@@ -174,6 +174,14 @@ const LESSON_TERMINAL = [
   'course_deleted',
 ];
 
+// A translation has no sibling resources reporting in after it, so unlike the
+// lesson set this one really does end at 'completed'.
+const TRANSLATION_TERMINAL = [
+  'lesson_translation_completed',
+  'lesson_translation_failed',
+  'course_deleted',
+];
+
 export const streamCourseGeneration = (courseId, handlers) =>
   openStream(`/v1/courses/${courseId}/generation/events`, {
     ...handlers,
@@ -184,4 +192,15 @@ export const streamLessonGeneration = (courseId, moduleId, lessonId, handlers) =
   openStream(
     `/v1/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/generation/events`,
     { ...handlers, terminalTypes: LESSON_TERMINAL }
+  );
+
+/**
+ * Its own stream rather than the lesson's. A translation is requested long after
+ * the lesson is READY, by which point the lesson's generation stream has reached
+ * its terminal state and closed.
+ */
+export const streamLessonTranslation = (courseId, moduleId, lessonId, language, handlers) =>
+  openStream(
+    `/v1/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/translations/${language}/events`,
+    { ...handlers, terminalTypes: TRANSLATION_TERMINAL }
   );

@@ -3,9 +3,9 @@ import { Spinner } from '../common';
 /**
  * Lesson-level actions.
  *
- * PDF export is live; text-to-speech and Hinglish are still planned and ship
+ * PDF export and Hinglish are live; text-to-speech is still planned and ships
  * disabled rather than hidden, so the header's layout is already settled —
- * enabling one means dropping its `comingSoon` flag and passing a handler, with
+ * enabling it means dropping its `comingSoon` flag and passing a handler, with
  * nothing around it moving.
  */
 const ACTIONS = [
@@ -28,19 +28,34 @@ const ACTIONS = [
   {
     key: 'hinglish',
     label: 'Hinglish',
-    comingSoon: true,
+    busyLabel: 'Translating…',
+    // A toggle, not a one-shot: once a translation exists the button switches the
+    // reader between languages, so it needs a pressed state to say which one is
+    // showing. `activeLabel` is what it reads as while Hinglish is on screen.
+    activeLabel: 'English',
     icon: <path d="M5 8h14M5 8a7 7 0 007 7 7 7 0 007-7M9 4h2M4 20l4-9 4 9" />,
   },
 ];
 
-export const LessonToolbar = ({ handlers = {}, busy = {} }) => (
+/**
+ * `handlers` / `busy` / `active` are keyed maps, so a new action is a row in
+ * ACTIONS plus an entry in each — no change to the markup.
+ */
+export const LessonToolbar = ({ handlers = {}, busy = {}, active = {} }) => (
   <div className="flex flex-wrap items-center gap-2">
     {ACTIONS.map((action) => {
       const onClick = handlers[action.key];
       const isBusy = Boolean(busy[action.key]);
+      const isActive = Boolean(active[action.key]);
       // Disabled while busy too, so a second click cannot start a duplicate
       // export on top of the one already running.
       const disabled = action.comingSoon || !onClick || isBusy;
+
+      const label = isBusy
+        ? action.busyLabel ?? 'Working…'
+        : isActive
+          ? action.activeLabel ?? action.label
+          : action.label;
 
       return (
         <button
@@ -48,12 +63,18 @@ export const LessonToolbar = ({ handlers = {}, busy = {} }) => (
           type="button"
           disabled={disabled}
           onClick={onClick}
-          title={action.comingSoon ? `${action.label} — coming soon` : action.label}
+          title={action.comingSoon ? `${action.label} — coming soon` : label}
           aria-busy={isBusy || undefined}
+          // Only meaningful for the actions that toggle; omitted entirely on the
+          // others so a screen reader does not announce a pressed state for a
+          // button that has none.
+          aria-pressed={action.activeLabel ? isActive : undefined}
           className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-primary ${
             disabled
               ? 'cursor-not-allowed border-line bg-subtle text-faint'
-              : 'border-line-strong bg-surface text-body hover:bg-subtle'
+              : isActive
+                ? 'border-primary bg-primary-soft text-primary-text hover:bg-subtle'
+                : 'border-line-strong bg-surface text-body hover:bg-subtle'
           }`}
         >
           {isBusy ? (
@@ -72,7 +93,7 @@ export const LessonToolbar = ({ handlers = {}, busy = {} }) => (
               {action.icon}
             </svg>
           )}
-          {isBusy ? action.busyLabel ?? 'Working…' : action.label}
+          {label}
         </button>
       );
     })}
