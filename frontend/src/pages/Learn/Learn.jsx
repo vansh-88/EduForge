@@ -12,6 +12,11 @@ import { GenerationProgress } from '../../components/generation/GenerationProgre
 import { LESSON_STAGE_LABELS, TRANSLATION_STAGE_LABELS, AUDIO_STAGE_LABELS } from '../../components/generation/stageLabels';
 import { coursePath, lessonPath } from '../../utils/paths';
 
+// Failures where trying again right now is guaranteed to fail again. Offering a
+// retry button for these is worse than offering nothing: it invites the reader to
+// spend a click confirming the same refusal.
+const NOT_WORTH_RETRYING = new Set(['RATE_LIMITED', 'AI_QUOTA_EXHAUSTED']);
+
 const QuizSummary = ({ quiz }) => {
   if (!quiz?.total) return null;
 
@@ -325,9 +330,11 @@ export default function Learn() {
       {isReady && audio.error && !audio.hasAudio && (
         <div className="mt-6">
           <ErrorState title="We couldn't record this lesson" message={audio.error} />
-          <Button className="mt-4" variant="secondary" onClick={audio.retry}>
-            Try again
-          </Button>
+          {!NOT_WORTH_RETRYING.has(audio.errorCode) && (
+            <Button className="mt-4" variant="secondary" onClick={audio.retry}>
+              Try again
+            </Button>
+          )}
         </div>
       )}
 
@@ -337,9 +344,11 @@ export default function Learn() {
             title="We couldn't translate this lesson"
             message={translation.error}
           />
-          <Button className="mt-4" variant="secondary" onClick={translation.retry}>
-            Try again
-          </Button>
+          {!NOT_WORTH_RETRYING.has(translation.errorCode) && (
+            <Button className="mt-4" variant="secondary" onClick={translation.retry}>
+              Try again
+            </Button>
+          )}
         </div>
       )}
 

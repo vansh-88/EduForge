@@ -1,35 +1,108 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import { redisConnection } from '../config/redis.config.js';
+import {
+  RATE_LIMIT_READ_MAX,
+  RATE_LIMIT_WRITE_MAX,
+  RATE_LIMIT_STREAM_MAX,
+  RATE_LIMIT_GENERATION_MAX,
+  RATE_LIMIT_AUDIO_MAX,
+} from '../config/env.config.js';
 
 /**
- * Guards the endpoints that cost a real AI call.
+ * Tiered limits, because the routes cost wildly different amounts.
  *
- * Redis-backed rather than the default in-memory store: that store is per-process, so
- * the limit would silently multiply by the number of API instances. Redis is already a
- * hard dependency here.
+ * The tiers exist to stop one shape of abuse being priced like another:
  *
- * Keyed by user id, not IP — the limit should follow the account, so it cannot be
+ *   read       cheap, frequent — a reader paging through a course
+ *   write      a Mongo write, no provider call — answering a question
+ *   stream     each SSE connection holds a dedicated Redis subscriber for as
+ *              long as it is open, so these are a resource to cap, not just a
+ *              request to count
+ *   generation ONE provider call — a lesson, a course, a translation
+ *   audio      one provider call PER SECTION, so a single request is worth
+ *              roughly four to fifteen of the tier above. On the free tier a
+ *              handful of these is the entire day's budget, which is exactly
+ *              how the TTS quota vanished in testing.
+ *
+ * Each tier is its own bucket, so exhausting the expensive one never locks a
+ * reader out of the lesson they already have.
+ *
+ * Redis-backed rather than the default in-memory store: that store is
+ * per-process, so every limit would silently multiply by the number of API
+ * instances.
+ *
+ * Keyed by user id, not IP — a limit should follow the account, so it cannot be
  * sidestepped by changing network and does not punish everyone behind one NAT.
+ * The IP fallback goes through ipKeyGenerator because raw req.ip lets an IPv6
+ * client rotate through its /64 to reset the counter.
  */
-export const generationRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 20,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  // These routes are always authenticated, so the user branch is the real one. The IP
-  // fallback must go through ipKeyGenerator: raw req.ip lets an IPv6 client rotate
-  // through its /64 to reset the counter.
-  keyGenerator: (req) => (req.user ? `u:${req.user._id}` : ipKeyGenerator(req.ip)),
-  store: new RedisStore({
-    prefix: 'ratelimit:generation:',
-    sendCommand: (...args) => redisConnection.call(...args),
-  }),
-  handler: (req, res) => {
-    res.status(429).json({
-      success: false,
-      error: 'Too many generation requests. Please try again later.',
-      code: 'RATE_LIMITED',
-    });
-  },
+function makeLimiter({ name, windowMs, limit, message }) {
+  return rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: (req) => (req.user ? `u:${req.user._id}` : ipKeyGenerator(req.ip)),
+    store: new RedisStore({
+      prefix: `ratelimit:${name}:`,
+      sendCommand: (...args) => redisConnection.call(...args),
+    }),
+    handler: (req, res) => {
+      // A single code the client already knows how to render, with a retry hint
+      // so the UI can say when rather than just no.
+      res.status(429).json({
+        success: false,
+        error: message,
+        code: 'RATE_LIMITED',
+        retryAfterSeconds: Math.ceil(windowMs / 1000),
+      });
+    },
+  });
+}
+
+/** Baseline for every authenticated route. Generous — this catches runaways, not users. */
+export const readRateLimiter = makeLimiter({
+  name: 'read',
+  windowMs: 15 * 60 * 1000,
+  limit: RATE_LIMIT_READ_MAX,
+  message: 'Too many requests. Please slow down and try again shortly.',
+});
+
+/** Mutations that hit MongoDB but spend nothing with a provider. */
+export const writeRateLimiter = makeLimiter({
+  name: 'write',
+  windowMs: 15 * 60 * 1000,
+  limit: RATE_LIMIT_WRITE_MAX,
+  message: 'Too many updates. Please try again in a few minutes.',
+});
+
+/**
+ * SSE connections.
+ *
+ * Capped because each open stream holds a duplicated Redis connection for its
+ * whole lifetime (see subscribeChannels), so this limits concurrent server
+ * resources, not merely request volume.
+ */
+export const streamRateLimiter = makeLimiter({
+  name: 'stream',
+  windowMs: 5 * 60 * 1000,
+  limit: RATE_LIMIT_STREAM_MAX,
+  message: 'Too many live connections opened. Please wait a moment.',
+});
+
+/** One provider call: course, lesson, or translation generation. */
+export const generationRateLimiter = makeLimiter({
+  name: 'generation',
+  windowMs: 60 * 60 * 1000,
+  limit: RATE_LIMIT_GENERATION_MAX,
+  message: 'Too many generation requests. Please try again later.',
+});
+
+/** One provider call per lesson section — the most expensive thing a user can ask for. */
+export const audioRateLimiter = makeLimiter({
+  name: 'audio',
+  windowMs: 60 * 60 * 1000,
+  limit: RATE_LIMIT_AUDIO_MAX,
+  message: 'Too many audio requests. Narration is limited — please try again later.',
 });

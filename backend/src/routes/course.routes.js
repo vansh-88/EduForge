@@ -4,7 +4,7 @@ import { streamCourseGenerationEvents } from '../controllers/courseEvents.contro
 import { validate} from '../middlewares/validate.middleware.js';
 import { generateCourseRequestSchema, listCoursesQuerySchema } from '../schemas/index.js';
 import { lessonRouter } from './lesson.routes.js';
-import { generationRateLimiter } from '../middlewares/rateLimit.middleware.js';
+import { generationRateLimiter, writeRateLimiter, streamRateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 
 export const courseRouter = Router();
@@ -19,6 +19,6 @@ courseRouter.get('/', validate(listCoursesQuerySchema, 'query'), listCourses);
 courseRouter.get('/:courseId', getCourseById);
 
 // Authenticated by the requireAuth/attachUser pair on the parent /v1/courses mount.
-courseRouter.get('/:courseId/generation/events', streamCourseGenerationEvents);
+courseRouter.get('/:courseId/generation/events', streamRateLimiter, streamCourseGenerationEvents);
 
-courseRouter.delete('/:courseId', deleteCourse);
+courseRouter.delete('/:courseId', writeRateLimiter, deleteCourse);

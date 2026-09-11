@@ -7,7 +7,7 @@ import { requestAudio, getAudio } from '../controllers/audio.controller.js';
 import { streamLessonAudioEvents } from '../controllers/lessonAudioEvents.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { submitAnswerSchema, requestTranslationSchema } from '../schemas/index.js';
-import { generationRateLimiter } from '../middlewares/rateLimit.middleware.js';
+import { generationRateLimiter, audioRateLimiter, writeRateLimiter, streamRateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 export const lessonRouter = Router({ mergeParams: true });
 
@@ -16,8 +16,8 @@ lessonRouter.get('/:lessonId', getLesson);
 // Spends a real AI call, so it shares the per-user generation limiter.
 lessonRouter.post('/:lessonId', generationRateLimiter, generateLesson);
 
-lessonRouter.post('/:lessonId/questions/:questionId/answer', validate(submitAnswerSchema), submitLessonAnswer);
-lessonRouter.post('/:lessonId/complete', completeLesson);
+lessonRouter.post('/:lessonId/questions/:questionId/answer', writeRateLimiter, validate(submitAnswerSchema), submitLessonAnswer);
+lessonRouter.post('/:lessonId/complete', writeRateLimiter, completeLesson);
 
 // Slot state only. Lets a resolving video update its own block without
 // refetching the lesson under a reader — and, unlike GET /:lessonId, triggers
@@ -33,15 +33,18 @@ lessonRouter.get('/:lessonId/translations/:language', getTranslation);
 // Its own stream rather than the lesson's: a translation is requested long after
 // the lesson is READY, by which point the lesson's generation stream has already
 // reached its terminal state and closed.
-lessonRouter.get('/:lessonId/translations/:language/events', streamLessonTranslationEvents);
+lessonRouter.get('/:lessonId/translations/:language/events', streamRateLimiter, streamLessonTranslationEvents);
 
 // Lesson audio: the same lazy, cached, hash-keyed artifact pattern as
 // translations. POST spends real TTS calls and so shares the generation limiter;
 // GET never starts one, so a player may re-read it on reconnect.
-lessonRouter.post('/:lessonId/audio', generationRateLimiter, requestAudio);
+// Its own tier, an order of magnitude tighter than the others: one request is one
+// provider call PER SECTION, so charging it the same as a lesson is what let a whole
+// day's TTS budget go in a handful of clicks.
+lessonRouter.post('/:lessonId/audio', audioRateLimiter, requestAudio);
 lessonRouter.get('/:lessonId/audio', getAudio);
-lessonRouter.get('/:lessonId/audio/events', streamLessonAudioEvents);
+lessonRouter.get('/:lessonId/audio/events', streamRateLimiter, streamLessonAudioEvents);
 
 // Authenticated by the requireAuth/attachUser pair on the parent /v1/courses mount.
 // The Authorization header is the only accepted credential, so the client must use a fetch-based SSE library rather than the browser's native EventSource.
-lessonRouter.get('/:lessonId/generation/events', streamLessonGenerationEvents);
+lessonRouter.get('/:lessonId/generation/events', streamRateLimiter, streamLessonGenerationEvents);

@@ -3,7 +3,8 @@ import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE } from '../..
 import {z} from 'zod';
 import { sanitizeForGemini } from '../../utils/gemini/sanitiseJson.js';
 import { pcmToWav, parsePcmMimeType, pcmDurationSeconds } from '../../utils/audio/wav.js';
-import { classifyProviderError } from './providerError.js';
+import { classifyProviderError, ProviderQuotaError } from './providerError.js';
+import { assertCanSpend, recordSpend, markExhausted } from './quota.js';
 
 // Initialize the Google Gen AI client
 export const gemini = new GoogleGenAI({
@@ -28,9 +29,17 @@ export const geminiProvider = {
         // console.log('Converted Zod to JSON:', JSON.stringify(jsonSchema));
 
 
-        // 2. Call Gemini
+        // 2. Call Gemini.
+        //
+        // Guarded on both sides: refuse locally when we already know the budget is
+        // gone, and trip the breaker when the provider tells us it is. Without the
+        // first, every queued job makes a round trip to be refused; without the
+        // second, we never learn.
+        await assertCanSpend(GEMINI_MODEL);
+
         let response;
         try {
+            await recordSpend(GEMINI_MODEL);
             response = await gemini.models.generateContent({
                 model: GEMINI_MODEL,
                 contents: prompt,
@@ -43,7 +52,14 @@ export const geminiProvider = {
         } catch (error) {
             // Same quota exposure as the speech path — lesson generation and
             // translation share one free-tier allowance.
-            throw classifyProviderError(error);
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                // Deliberately NOT classified.retryAfterSeconds: on a daily quota that
+                // field carries the per-minute retry hint (tens of seconds), and using
+                // it would reopen the circuit while the day's budget is still gone.
+                await markExhausted(GEMINI_MODEL);
+            }
+            throw classified;
         }
         // console.log('Gemini response:', response);
 
@@ -90,8 +106,11 @@ export const geminiProvider = {
      */
     async synthesizeSpeech(text, { voice = TTS_VOICE } = {}) {
 
+        await assertCanSpend(GEMINI_TTS_MODEL);
+
         let response;
         try {
+            await recordSpend(GEMINI_TTS_MODEL);
             response = await gemini.models.generateContent({
                 model: GEMINI_TTS_MODEL,
                 contents: text,
@@ -106,7 +125,17 @@ export const geminiProvider = {
             // A 429 arrives as a JSON blob on the message. Classified here so the
             // worker can tell "wait a minute" from "not until tomorrow" — retrying
             // the latter just burns the retry budget in a few seconds.
-            throw classifyProviderError(error);
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                // Authoritative: the provider has spoken, so stop guessing from the
+                // counter and refuse locally until the quota resets.
+                //
+                // No TTL argument on purpose — retryAfterSeconds is the per-minute
+                // hint even on a daily rejection, so passing it would reopen the
+                // circuit in under a minute with the day's budget still spent.
+                await markExhausted(GEMINI_TTS_MODEL);
+            }
+            throw classified;
         }
 
         const inline = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;

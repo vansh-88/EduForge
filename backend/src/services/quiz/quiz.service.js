@@ -1,5 +1,6 @@
 import { LessonQuizAttempt } from '../../models/index.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { invalidateUserStats } from '../stats/stats.service.js';
 
 
 //Every mcq block in a lesson, in content order. Question ids are stamped at generation time (withQuestionIds in the lesson processor).
@@ -92,6 +93,9 @@ export async function submitAnswer({ userId, courseId, lesson, questionId, selec
   );
 
   const state = buildQuizState(lesson, attempt);
+
+  // An answer changes the answered/correct totals the dashboard and profile show.
+  await invalidateUserStats(userId);
 
   return {
     questionId,

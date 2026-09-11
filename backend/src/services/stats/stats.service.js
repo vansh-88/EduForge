@@ -1,4 +1,6 @@
 import { Course, CourseProgress, LessonQuizAttempt } from '../../models/index.js';
+import { cached, invalidateCache } from '../cache/cache.js';
+import { STATS_CACHE_TTL_SECONDS } from '../../config/env.config.js';
 
 // The in-flight statuses collapse into one bucket: a user browsing a dashboard cares
 // that a course is still being built, not which internal phase it is in.
@@ -11,7 +13,7 @@ const IN_FLIGHT = ['GENERATING', 'PROCESSING', 'RETRYING'];
  * Uses aggregation rather than loading documents: counting lessons completed and quiz
  * answers otherwise means pulling every progress and attempt document into memory.
  */
-export async function computeUserStats(userId) {
+async function computeUserStatsUncached(userId) {
   const [courseRows, progressRows, quizRows] = await Promise.all([
     // One pass gives the total, the status breakdown, and the lesson denominator.
     Course.aggregate([
@@ -87,4 +89,35 @@ export async function computeUserStats(userId) {
       accuracy: quiz.answered > 0 ? Math.round((quiz.correct / quiz.answered) * 100) : 0,
     },
   };
+}
+
+
+const statsCacheKey = (userId) => `stats:user:${userId}`;
+
+/**
+ * Every learning statistic for one user, cached briefly.
+ *
+ * The only read in the application expensive enough to be worth caching: three
+ * aggregations, and both the dashboard and the profile page ask for it, so a
+ * single page view can run it twice. Everything else here is one indexed query
+ * against one user's own documents, where a cache would buy little and add an
+ * invalidation path to every write.
+ *
+ * The TTL is short and the cache is invalidated on the two writes that actually
+ * move the numbers, so a reader who finishes a lesson sees it reflected at once
+ * rather than up to a minute later. The TTL is the backstop for anything else
+ * that touches the underlying documents — a deleted course, say — which is why
+ * it exists even though the explicit invalidation covers the common cases.
+ */
+export async function computeUserStats(userId) {
+  return cached(
+    statsCacheKey(userId),
+    STATS_CACHE_TTL_SECONDS,
+    () => computeUserStatsUncached(userId)
+  );
+}
+
+/** Called from the writes that change what the statistics report. */
+export async function invalidateUserStats(userId) {
+  await invalidateCache(statsCacheKey(userId));
 }

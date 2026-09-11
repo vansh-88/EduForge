@@ -1,4 +1,5 @@
 import { CourseProgress } from '../../models/index.js';
+import { invalidateUserStats } from '../stats/stats.service.js';
 
 /**
  * Single source of truth for progress numbers. Pure — no DB access — so the
@@ -66,6 +67,11 @@ export async function markLessonComplete({ userId, course, lessonId }) {
         { returnDocument: 'after' }
       )) ?? progress;
   }
+
+  // Completing a lesson moves lessonsCompleted, and possibly completedCourses.
+  // Dropped rather than recomputed: the next read pays for a fresh one, and a
+  // reader who just finished a lesson should not see a stale count.
+  await invalidateUserStats(userId);
 
   return { progress, summary };
 }

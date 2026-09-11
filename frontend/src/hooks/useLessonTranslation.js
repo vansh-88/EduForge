@@ -40,6 +40,9 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
   const [content, setContent] = useState(null);
   const [status, setStatus] = useState('NOT_REQUESTED');
   const [error, setError] = useState(null);
+  // Carried alongside the message so the page can tell a retryable failure from
+  // one where retrying now is guaranteed to fail again (rate limit, spent quota).
+  const [errorCode, setErrorCode] = useState(null);
   const [isRequesting, setIsRequesting] = useState(false);
 
   const key = cacheKey(lessonId, language);
@@ -56,6 +59,7 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
     setContent(cached ?? null);
     setStatus(cached ? 'READY' : 'NOT_REQUESTED');
     setError(null);
+    setErrorCode(null);
   }
 
   // A lesson change must not leave a stale request writing into the new lesson's
@@ -98,6 +102,7 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
       if (activeKeyRef.current !== requestedKey) return;
       setStatus('FAILED');
       setError(err.message);
+      setErrorCode(err.code ?? null);
     }
   }, [courseId, moduleId, lessonId, language, store]);
 
@@ -120,6 +125,7 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
 
     setIsRequesting(true);
     setError(null);
+    setErrorCode(null);
 
     try {
       const result = await requestTranslation(courseId, moduleId, lessonId, language);
@@ -138,6 +144,7 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
       if (activeKeyRef.current !== requestedKey) return;
       setStatus('FAILED');
       setError(err.message);
+      setErrorCode(err.code ?? null);
     } finally {
       inFlightRef.current = false;
       if (activeKeyRef.current === requestedKey) setIsRequesting(false);
@@ -164,6 +171,7 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
     setContent(null);
     setStatus('NOT_REQUESTED');
     setError(null);
+    setErrorCode(null);
     return start();
   }, [key, start]);
 
@@ -223,12 +231,13 @@ export const useLessonTranslation = ({ courseId, moduleId, lessonId, language = 
       content,
       status,
       error,
+      errorCode,
       generation,
       isPending: isRequesting || (!content && WATCHABLE.has(status)),
       hasTranslation: Boolean(content),
       request,
       retry,
     }),
-    [content, status, error, generation, isRequesting, request, retry]
+    [content, status, error, errorCode, generation, isRequesting, request, retry]
   );
 };

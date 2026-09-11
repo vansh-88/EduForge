@@ -7,6 +7,8 @@ import { hashLessonContent } from '../../utils/contentHash.js';
 import { publishAudioEvent } from '../realtime/generationEvents.js';
 import { loadAuthorizedLesson } from '../lesson/lesson.service.js';
 import { toAudioDTO } from '../../serializers/lesson.serializer.js';
+import { canSpend, secondsUntilReset } from '../ai/quota.js';
+import { GEMINI_TTS_MODEL } from '../../config/env.config.js';
 
 const IN_FLIGHT = ['GENERATING', 'PROCESSING', 'RETRYING'];
 
@@ -172,8 +174,8 @@ export async function requestLessonAudio({ userId, courseId, moduleId, lessonId,
 
   const sourceContentHash = hashLessonContent(lesson.content);
 
-  // 4. Cache check. A row whose hash matches the live lesson is usable; one whose
-  // hash differs describes content that has since changed and is regenerated.
+  // 4. Cache check FIRST — serving audio that already exists costs the provider
+  // nothing, so it must not be blocked by an exhausted budget.
   const existing = await LessonAudio.findOne({ lesson: lessonId, language, voice });
 
   if (existing && existing.sourceContentHash === sourceContentHash) {
@@ -197,7 +199,16 @@ export async function requestLessonAudio({ userId, courseId, moduleId, lessonId,
     }
   }
 
-  // 5. Claim + enqueue + record the key, committed together.
+  // 5. Only now, with generation genuinely required, check the budget. Refusing
+  // here means the reader is told immediately and plainly, instead of watching a
+  // queued job fail a minute later for a reason nobody can see.
+  if (!(await canSpend(GEMINI_TTS_MODEL))) {
+    throw new ApiError(503, 'Narration is unavailable right now: the daily audio budget is used up.', {
+      code: 'AI_QUOTA_EXHAUSTED',
+      details: { retryAfterSeconds: secondsUntilReset() },
+    });
+  }
+
   const responseBody = {
     success: true,
     message: 'Audio generation started',

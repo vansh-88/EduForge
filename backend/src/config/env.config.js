@@ -29,6 +29,50 @@ const CLOUDINARY_URL = process.env.CLOUDINARY_URL;
 */
 
 
+/*
+|--------------------------------------------------------------------------
+| Rate limiting
+|--------------------------------------------------------------------------
+|
+| Tiered by what a request actually costs. Reads are cheap and frequent;
+| generation spends one provider call; audio spends one PER LESSON SECTION, so a
+| single request can be worth a dozen of the tier above. One bucket for all of
+| them priced abuse the same as ordinary use — and on a free-tier key, a handful
+| of audio requests is the entire day.
+*/
+
+
+const RATE_LIMIT_READ_MAX = Number(process.env.RATE_LIMIT_READ_MAX || 300);       // per 15 min
+const RATE_LIMIT_WRITE_MAX = Number(process.env.RATE_LIMIT_WRITE_MAX || 100);     // per 15 min
+const RATE_LIMIT_STREAM_MAX = Number(process.env.RATE_LIMIT_STREAM_MAX || 60);    // per 5 min
+const RATE_LIMIT_GENERATION_MAX = Number(process.env.RATE_LIMIT_GENERATION_MAX || 20); // per hour
+const RATE_LIMIT_AUDIO_MAX = Number(process.env.RATE_LIMIT_AUDIO_MAX || 5);       // per hour
+
+
+/*
+|--------------------------------------------------------------------------
+| AI provider budget
+|--------------------------------------------------------------------------
+|
+| A local guard rail in front of the provider's own daily quota, so the
+| application can refuse before spending rather than discovering exhaustion one
+| 429 at a time. Set to 0 to disable the check entirely, which is what a paid key
+| with no meaningful daily cap should do.
+|
+| The TTS default matches the Gemini free tier's ten requests per day. That is
+| roughly two lessons of narration for the whole application, so on a free key
+| this is the binding constraint on the feature, not a safety margin.
+*/
+
+
+const AI_DAILY_REQUEST_BUDGET = Number(process.env.AI_DAILY_REQUEST_BUDGET || 200);
+const AI_TTS_DAILY_REQUEST_BUDGET = Number(process.env.AI_TTS_DAILY_REQUEST_BUDGET || 10);
+
+// How long a cached user-stats snapshot may be stale. Short, because the numbers
+// move whenever a lesson is completed and a reader will look for the change.
+const STATS_CACHE_TTL_SECONDS = Number(process.env.STATS_CACHE_TTL_SECONDS || 60);
+
+
 const QUEUE_ATTEMPTS = Number(process.env.QUEUE_ATTEMPTS || 3);
 const QUEUE_BACKOFF_TYPE = process.env.QUEUE_BACKOFF_TYPE || 'exponential';
 const QUEUE_BACKOFF_DELAY = Number(process.env.QUEUE_BACKOFF_DELAY || 2000);
@@ -213,6 +257,16 @@ export {
   GEMINI_MODEL,
 
   REDIS_URL,
+
+  RATE_LIMIT_READ_MAX,
+  RATE_LIMIT_WRITE_MAX,
+  RATE_LIMIT_STREAM_MAX,
+  RATE_LIMIT_GENERATION_MAX,
+  RATE_LIMIT_AUDIO_MAX,
+
+  AI_DAILY_REQUEST_BUDGET,
+  AI_TTS_DAILY_REQUEST_BUDGET,
+  STATS_CACHE_TTL_SECONDS,
 
   QUEUE_ATTEMPTS,
   QUEUE_BACKOFF_TYPE,

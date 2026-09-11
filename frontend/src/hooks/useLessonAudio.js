@@ -34,6 +34,9 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
   const [segments, setSegments] = useState([]);
   const [status, setStatus] = useState('NOT_REQUESTED');
   const [error, setError] = useState(null);
+  // Carried alongside the message so the page can tell a retryable failure from
+  // one where retrying now is guaranteed to fail again (rate limit, spent quota).
+  const [errorCode, setErrorCode] = useState(null);
   const [isRequesting, setIsRequesting] = useState(false);
 
   // Reset in the same render that changed the lesson, before the previous
@@ -46,6 +49,7 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
     setSegments(cached ?? []);
     setStatus(cached ? 'READY' : 'NOT_REQUESTED');
     setError(null);
+    setErrorCode(null);
   }
 
   // Guards every async continuation against writing into a lesson the reader has
@@ -95,6 +99,7 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
       if (activeLessonRef.current !== requestedLesson) return;
       setStatus('FAILED');
       setError(err.message);
+      setErrorCode(err.code ?? null);
     }
   }, [courseId, moduleId, lessonId]);
 
@@ -113,6 +118,7 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
 
     setIsRequesting(true);
     setError(null);
+    setErrorCode(null);
 
     try {
       const result = await requestAudio(courseId, moduleId, lessonId);
@@ -130,6 +136,7 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
       if (activeLessonRef.current !== requestedLesson) return;
       setStatus('FAILED');
       setError(err.message);
+      setErrorCode(err.code ?? null);
     } finally {
       inFlightRef.current = false;
       if (activeLessonRef.current === requestedLesson) setIsRequesting(false);
@@ -149,6 +156,7 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
     setSegments([]);
     setStatus('NOT_REQUESTED');
     setError(null);
+    setErrorCode(null);
     return start();
   }, [lessonId, start]);
 
@@ -221,6 +229,7 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
       readySegments,
       status,
       error,
+      errorCode,
       generation,
       // True from the click until the first section can be played — the window in
       // which there is genuinely nothing to listen to.
@@ -231,6 +240,6 @@ export const useLessonAudio = ({ courseId, moduleId, lessonId }) => {
       request,
       retry,
     }),
-    [segments, readySegments, status, error, generation, isRequesting, request, retry]
+    [segments, readySegments, status, error, errorCode, generation, isRequesting, request, retry]
   );
 };

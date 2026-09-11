@@ -7,6 +7,8 @@ import { hashLessonContent } from '../../utils/contentHash.js';
 import { publishTranslationEvent } from '../realtime/generationEvents.js';
 import { loadAuthorizedLesson } from '../lesson/lesson.service.js';
 import { toTranslationDTO } from '../../serializers/lesson.serializer.js';
+import { canSpend, secondsUntilReset } from '../ai/quota.js';
+import { GEMINI_MODEL } from '../../config/env.config.js';
 
 const IN_FLIGHT = ['GENERATING', 'PROCESSING', 'RETRYING'];
 
@@ -209,7 +211,16 @@ export async function requestLessonTranslation({ userId, courseId, moduleId, les
     }
   }
 
-  // 5. Claim + enqueue + record the key, all committed together.
+  // 5. Budget check, after the cache check above so an existing translation is
+  // always servable. Refusing here tells the reader plainly rather than queueing a
+  // job that will fail out of sight.
+  if (!(await canSpend(GEMINI_MODEL))) {
+    throw new ApiError(503, 'Translation is unavailable right now: the daily AI budget is used up.', {
+      code: 'AI_QUOTA_EXHAUSTED',
+      details: { retryAfterSeconds: secondsUntilReset() },
+    });
+  }
+
   const responseBody = {
     success: true,
     message: 'Translation started',
