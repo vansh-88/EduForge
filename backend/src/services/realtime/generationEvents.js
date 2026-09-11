@@ -34,6 +34,20 @@ export function courseDeletedChannel(courseId) {
 }
 
 /**
+ * Channel for one lesson's translation into one language.
+ *
+ * Deliberately NOT the lesson's own generation channel. A translation is
+ * requested long after the lesson is READY, by which point that stream has
+ * already closed — its terminal condition is "content ready and every video slot
+ * settled". Publishing here instead means a translation gets its own short-lived
+ * stream with its own terminal condition, and the lesson generation path that
+ * already works is left untouched.
+ */
+export function translationChannel(lessonId, language) {
+  return `lesson:translation:${lessonId}:${language}`;
+}
+
+/**
  * The single definition of a generation event's shape. Accepts either a MongoDB
  * status ('PROCESSING') or an already-normalized one ('generating'), so workers and
  * SSE snapshots can both build events through it.
@@ -130,6 +144,18 @@ export async function publishEnrichmentCompleted(lessonId) {
     type: 'lesson_enrichment_completed',
     status: 'ready',
   });
+}
+
+/**
+ * Progress on one lesson translation.
+ *
+ * Unlike the video slot events, these DO go through toGenerationEvent: a
+ * translation has its own lifecycle — stage, progress, attempt count, retries —
+ * so it has exactly the shape that function exists to describe, and the client
+ * can render it with the same GenerationProgress panel a lesson uses.
+ */
+export async function publishTranslationEvent(lessonId, language, descriptor) {
+  await publishTo(translationChannel(lessonId, language), toGenerationEvent(descriptor));
 }
 
 /**

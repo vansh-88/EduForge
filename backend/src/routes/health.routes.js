@@ -4,6 +4,7 @@ import { redisConnection } from '../config/redis.config.js';
 import { courseGenerationQueue } from '../services/queue/course.queue.js';
 import { lessonGenerationQueue } from '../services/queue/lesson.queue.js';
 import { videoResolutionQueue } from '../services/queue/video.queue.js';
+import { lessonTranslationQueue } from '../services/queue/translation.queue.js';
 import { readWorkerHeartbeat } from '../workers/heartbeat.js';
 
 
@@ -47,8 +48,9 @@ healthRouter.get('/ready', async (req, res) => {
         courseGenerationQueue.getWorkersCount(),
         lessonGenerationQueue.getWorkersCount(),
         videoResolutionQueue.getWorkersCount(),
+        lessonTranslationQueue.getWorkersCount(),
       ])
-        .then(([course, lesson, video]) => course > 0 && lesson > 0 && video > 0)
+        .then((counts) => counts.every((count) => count > 0))
         .catch(() => false),
 
       readWorkerHeartbeat(),

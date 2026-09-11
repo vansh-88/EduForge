@@ -7,3 +7,4 @@ export { IdempotencyKey } from './idempotencyKey.model.js';
 export { CourseProgress } from './courseProgress.model.js';
 export { LessonQuizAttempt } from './lessonQuizAttempt.model.js';
 export { VideoSlot } from './videoSlot.model.js';
+export { LessonTranslation } from './lessonTranslation.model.js';

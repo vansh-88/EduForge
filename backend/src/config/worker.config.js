@@ -1,4 +1,4 @@
-import {COURSE_WORKER_CONCURRENCY, LESSON_WORKER_CONCURRENCY, VIDEO_WORKER_CONCURRENCY} from './env.config.js';
+import {COURSE_WORKER_CONCURRENCY, LESSON_WORKER_CONCURRENCY, VIDEO_WORKER_CONCURRENCY, TRANSLATION_WORKER_CONCURRENCY} from './env.config.js';
 
 
 export const workerConfig = {
@@ -10,5 +10,8 @@ export const workerConfig = {
   },
   video: {
     concurrency: VIDEO_WORKER_CONCURRENCY,
+  },
+  translation: {
+    concurrency: TRANSLATION_WORKER_CONCURRENCY,
   },
 };

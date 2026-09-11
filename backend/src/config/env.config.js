@@ -54,6 +54,27 @@ const COURSE_WORKER_CONCURRENCY = Number(process.env.COURSE_WORKER_CONCURRENCY |
 const LESSON_WORKER_CONCURRENCY = Number(process.env.LESSON_WORKER_CONCURRENCY || 3);
 
 
+/*
+|--------------------------------------------------------------------------
+| Translation configuration
+|--------------------------------------------------------------------------
+|
+| Translation is a derived artifact: a lesson is fully usable without it, and it
+| shares the Gemini quota with lesson generation — which is the feature nobody can
+| do without. Concurrency is therefore kept below the lesson worker's on purpose.
+|
+| The batch bounds exist because asking for a whole lesson's strings in one
+| response is where models start truncating and silently dropping entries (the
+| same degeneration documented on the lesson schema). Smaller responses come back
+| whole, and a failure costs one batch rather than the lesson.
+*/
+
+
+const TRANSLATION_WORKER_CONCURRENCY = Number(process.env.TRANSLATION_WORKER_CONCURRENCY || 2);
+const TRANSLATION_BATCH_MAX_ITEMS = Number(process.env.TRANSLATION_BATCH_MAX_ITEMS || 25);
+const TRANSLATION_BATCH_MAX_CHARS = Number(process.env.TRANSLATION_BATCH_MAX_CHARS || 6000);
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -162,6 +183,10 @@ export {
   COURSE_WORKER_CONCURRENCY,
 
   LESSON_WORKER_CONCURRENCY,
+
+  TRANSLATION_WORKER_CONCURRENCY,
+  TRANSLATION_BATCH_MAX_ITEMS,
+  TRANSLATION_BATCH_MAX_CHARS,
 
   VIDEO_PROVIDER,
   YOUTUBE_API_KEY,

@@ -86,6 +86,60 @@ export function toLessonContentDTO(content = [], slotsById = null) {
   });
 }
 
+/**
+ * Strips grading data from translated content.
+ *
+ * Deliberately NOT toLessonContentDTO. That function resolves video blocks
+ * against a slot map and reports any block it cannot find as PENDING — correct
+ * for a lesson read, wrong here, because a translation has no slots of its own
+ * and every resolved video would come back as a spinner. A translated video block
+ * carries only its `slotId` and translated `caption`; the client merges it onto
+ * the English block, whose live slot state SSE has already been patching.
+ *
+ * MCQs are stripped exactly as in the English path — a translated `answer` and
+ * `explanation` are still the answer key.
+ */
+function toTranslatedContentDTO(content = []) {
+  return content.map((block) => {
+    if (block.type === 'mcq') {
+      const { answer, explanation, ...safe } = block;
+      return safe;
+    }
+
+    if (block.type === 'video') {
+      return { type: 'video', slotId: block.slotId ?? null, caption: block.caption ?? null };
+    }
+
+    return block;
+  });
+}
+
+/**
+ * One lesson translation, shaped for the reader.
+ *
+ * Content is omitted entirely unless READY, so a client cannot render a partial
+ * or superseded translation.
+ */
+export function toTranslationDTO(translation, { lessonId } = {}) {
+  const isReady = translation.status === 'READY';
+
+  return {
+    lessonId: String(lessonId ?? translation.lesson),
+    language: translation.language,
+    status: translation.status,
+    content: isReady ? toTranslatedContentDTO(translation.content) : null,
+    generation: {
+      status: translation.status,
+      attempt: translation.attempts,
+      maxAttempts: translation.maxAttempts,
+      stage: translation.stage,
+      progress: translation.progress,
+      lastError: translation.status === 'FAILED' ? translation.lastError : null,
+      completedAt: translation.completedAt,
+    },
+  };
+}
+
 export function toLessonDTO(lesson, { completed = false, videoSlots = [] } = {}) {
   const slotsById = new Map((videoSlots ?? []).map((slot) => [slot.slotId, slot]));
 

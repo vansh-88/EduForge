@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration, retryCourseGeneration as retryCourseGenerationService } from '../services/course/course.service.js';
-import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot } from '../models/index.js';
+import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot, LessonTranslation } from '../models/index.js';
 import mongoose from 'mongoose';
 import { computeProgress, getOrCreateProgress } from '../services/progress/progress.service.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
@@ -208,6 +208,9 @@ export const deleteCourse = async (req, res) => {
   // and its own queued generation work.
   const moduleIds = await Module.find({ course: course._id }).distinct('_id');
   const lessonIds = await Lesson.find({ module: { $in: moduleIds } }).distinct('_id');
+  // Translation events are keyed by the translation's own id, not the lesson's,
+  // so they have to be collected separately to be cleaned out of the outbox below.
+  const translationIds = await LessonTranslation.find({ course: course._id }).distinct('_id');
 
   await Promise.all([
     Lesson.deleteMany({ module: { $in: moduleIds } }),
@@ -217,13 +220,15 @@ export const deleteCourse = async (req, res) => {
     // Slots are denormalized with their course id precisely so this is one
     // query rather than a walk down through modules and lessons.
     VideoSlot.deleteMany({ course: course._id }),
+    // Translations carry the course id for exactly the same reason.
+    LessonTranslation.deleteMany({ course: course._id }),
     // Drop generation work not yet dispatched, for the course and for every lesson
     // (lesson events are keyed by lessonId, not courseId). PROCESSING is included
     // because the publisher rescues stale PROCESSING rows after OUTBOX_LOCK_TIME_MS
     // and would otherwise re-dispatch one. Already-running jobs bounce off the claim
     // harmlessly, since the documents no longer exist.
     OutboxEvent.deleteMany({
-      aggregateId: { $in: [course._id, ...lessonIds] },
+      aggregateId: { $in: [course._id, ...lessonIds, ...translationIds] },
       status: { $in: ['PENDING', 'PROCESSING'] },
     }),
   ]);
