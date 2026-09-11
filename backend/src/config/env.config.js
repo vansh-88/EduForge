@@ -212,6 +212,41 @@ const OUTBOX_MAX_ATTEMPTS = Number(process.env.OUTBOX_MAX_ATTEMPTS || 10);
 
 /*
 |--------------------------------------------------------------------------
+| Worker wake-up (free-tier hosting)
+|--------------------------------------------------------------------------
+|
+| The worker is deployed as an ordinary web service rather than a dedicated
+| background worker, because the free tier does not offer one. Such a service is
+| spun down after roughly fifteen minutes without inbound HTTP traffic, and the
+| worker process is where the outbox publisher lives — so a sleeping worker does
+| not merely stop processing jobs, it stops enqueuing them at all.
+|
+| Nothing is lost while it sleeps: outbox events are committed to MongoDB and the
+| publisher drains whatever accumulated as soon as it comes back. But something
+| has to wake it, so the API pings it whenever it writes an event and again while
+| a generation stream is open.
+|
+| WORKER_HTTP is what makes the worker bind a port at all. It is set only on the
+| deployed worker service; locally the worker binds nothing and cannot collide
+| with the API.
+|
+| WORKER_WAKE_URL is set only on the API service. Unset — in local development,
+| or if both roles ever run in one process — every ping is a no-op, so none of
+| this costs anything outside the deployment it exists for.
+*/
+
+
+const WORKER_HTTP = process.env.WORKER_HTTP === 'true';
+const WORKER_WAKE_URL = process.env.WORKER_WAKE_URL || null;
+
+// A cold start is around a minute, so pinging more often than this cannot wake
+// anything sooner — it only spends requests against a service that is already on
+// its way up.
+const WORKER_WAKE_MIN_INTERVAL_MS = Number(process.env.WORKER_WAKE_MIN_INTERVAL_MS || 60_000);
+
+
+/*
+|--------------------------------------------------------------------------
 | Validation
 |--------------------------------------------------------------------------
 */
@@ -303,6 +338,10 @@ export {
   OUTBOX_POLL_INTERVAL_MS,
   OUTBOX_BATCH_SIZE,
   OUTBOX_MAX_ATTEMPTS,
+
+  WORKER_HTTP,
+  WORKER_WAKE_URL,
+  WORKER_WAKE_MIN_INTERVAL_MS,
 
   AUTH0_ISSUER,
   AUTH0_AUDIENCE,

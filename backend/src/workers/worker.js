@@ -1,5 +1,7 @@
+import http from 'node:http';
 import mongoose from 'mongoose';
 import { connectDB } from '../config/db.config.js';
+import { WORKER_HTTP, PORT } from '../config/env.config.js';
 import { workerConfig } from '../config/worker.config.js';
 import { courseWorker } from './course.worker.js';
 import { lessonWorker } from './lesson.worker.js';
@@ -9,6 +11,45 @@ import { ttsWorker } from './tts.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
 import { startWorkerHeartbeat, stopWorkerHeartbeat } from './heartbeat.js';
 import { redisConnection } from '../config/redis.config.js';
+
+
+/*
+ * The worker's own HTTP listener.
+ *
+ * It exists for the deployment, not for the application: free-tier hosting has
+ * no dedicated background-worker service, so the worker runs as a web service —
+ * and a web service that binds no port is treated as a failed deploy and killed.
+ * Binding one also gives the API a URL to ping, which is how a spun-down worker
+ * is woken.
+ *
+ * Deliberately not an Express app. It answers one question, needs no middleware,
+ * and must never become a second place where API routes live.
+ */
+let workerHttpServer = null;
+
+function startWorkerHttpServer() {
+  if (!WORKER_HTTP) return;
+
+  workerHttpServer = http.createServer((req, res) => {
+    const mongoUp = mongoose.connection.readyState === 1;
+
+    // Reports this process's own view of itself. The API's /ready is still the
+    // endpoint that judges the worker — it reads the Redis heartbeat, which
+    // proves the worker is reachable through the same path the jobs take.
+    res.writeHead(mongoUp ? 200 : 503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: mongoUp,
+      role: 'worker',
+      pid: process.pid,
+      mongo: mongoUp,
+      uptimeSeconds: Math.round(process.uptime()),
+    }));
+  });
+
+  workerHttpServer.listen(PORT, () => {
+    console.log(`✅ Worker HTTP listener on port ${PORT}`);
+  });
+}
 
 
 async function startWorkers() {
@@ -39,6 +80,10 @@ async function startWorkers() {
     // ever reports a process that is fully wired up.
     startWorkerHeartbeat();
     console.log('✅ Worker heartbeat started');
+
+    // 6. Last of all, accept HTTP. The port is what the host reads as "this
+    // service is up", so it must not go up before the process can actually work.
+    startWorkerHttpServer();
   }
   catch (error) {
     console.error('❌ Worker startup failed:', error);
@@ -53,6 +98,13 @@ async function gracefulShutdown(signal) {
   console.log(`\n🛑 Received ${signal}, starting graceful shutdown...`);
 
   try {
+
+    // 0. Stop answering HTTP first, so nothing reads this process as healthy
+    // while it is shutting down.
+    if (workerHttpServer) {
+      await new Promise((resolve) => workerHttpServer.close(resolve));
+      console.log('✅ Worker HTTP listener stopped.');
+    }
 
     // 1. Stop the outbox publisher
     // Stop advertising liveness first, so the API stops routing readiness green

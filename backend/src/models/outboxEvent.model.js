@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { pingWorker } from '../services/worker/wake.js';
 
 const outboxEventSchema = new mongoose.Schema(
   {
@@ -76,5 +77,27 @@ const outboxEventSchema = new mongoose.Schema(
 );
 
 outboxEventSchema.index({status: 1, nextAttemptAt: 1});
+
+
+/*
+ * Every new event wakes the worker, if the deployment needs waking.
+ *
+ * On the schema rather than at the six call sites that create events, because
+ * this is a property of "an event exists to be published", not of any one
+ * feature — a future event type would otherwise have to remember a step that has
+ * nothing to do with what it is for.
+ *
+ * The ping is fire-and-forget and a no-op unless WORKER_WAKE_URL is set, so it
+ * costs a running worker, a single-process deployment, and local development
+ * nothing at all. Events created BY the worker never ping, since that variable
+ * is only ever set on the API.
+ *
+ * It fires before the surrounding transaction commits, which is harmless: the
+ * worker takes far longer to wake than the commit takes to land, and the
+ * publisher polls continuously once it is up.
+ */
+outboxEventSchema.post('save', function () {
+  pingWorker();
+});
 
 export const OutboxEvent = mongoose.model('OutboxEvent', outboxEventSchema);

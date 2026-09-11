@@ -1,4 +1,5 @@
 import { subscribeChannels, toGenerationEvent } from './generationEvents.js';
+import { pingWorker } from '../worker/wake.js';
 
 const HEARTBEAT_MS = 15000;
 
@@ -102,5 +103,13 @@ export async function streamGeneration(req, res, { kind, id, channels, loadSnaps
 
   if (closed) return;
 
-  heartbeat = setInterval(() => res.write(': heartbeat\n\n'), HEARTBEAT_MS);
+  heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+
+    // An open stream means a generation is still in flight, which is precisely
+    // when the worker must not be allowed to spin down for want of traffic —
+    // a lesson can easily run longer than a free-tier idle timeout. Debounced
+    // internally, so fifteen-second heartbeats do not mean fifteen-second pings.
+    pingWorker();
+  }, HEARTBEAT_MS);
 }
