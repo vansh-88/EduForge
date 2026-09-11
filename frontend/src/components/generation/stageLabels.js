@@ -9,6 +9,13 @@ export const COURSE_STAGE_LABELS = {
   completed: 'Done',
 };
 
+export const AUDIO_STAGE_LABELS = {
+  queued: 'Queued — waiting for a free worker',
+  preparing_script: 'Working out what to read aloud',
+  synthesizing: 'Recording the narration',
+  completed: 'Done',
+};
+
 export const TRANSLATION_STAGE_LABELS = {
   queued: 'Queued — waiting for a free worker',
   translating: 'Rewriting this lesson in Hinglish',

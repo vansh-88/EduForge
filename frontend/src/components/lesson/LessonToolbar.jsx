@@ -3,16 +3,16 @@ import { Spinner } from '../common';
 /**
  * Lesson-level actions.
  *
- * PDF export and Hinglish are live; text-to-speech is still planned and ships
- * disabled rather than hidden, so the header's layout is already settled —
- * enabling it means dropping its `comingSoon` flag and passing a handler, with
- * nothing around it moving.
+ * `handlers` / `busy` / `active` are keyed maps, so adding an action is a row in
+ * ACTIONS plus an entry in each — no change to the markup below.
  */
 const ACTIONS = [
   {
     key: 'tts',
     label: 'Listen',
-    comingSoon: true,
+    busyLabel: 'Preparing audio…',
+    // Also a toggle: once audio exists the button shows and hides the player.
+    activeLabel: 'Hide player',
     icon: (
       <path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 010 7.07M18.36 5.64a9 9 0 010 12.72" />
     ),
@@ -37,10 +37,6 @@ const ACTIONS = [
   },
 ];
 
-/**
- * `handlers` / `busy` / `active` are keyed maps, so a new action is a row in
- * ACTIONS plus an entry in each — no change to the markup.
- */
 export const LessonToolbar = ({ handlers = {}, busy = {}, active = {} }) => (
   <div className="flex flex-wrap items-center gap-2">
     {ACTIONS.map((action) => {

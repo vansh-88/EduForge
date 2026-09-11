@@ -2,12 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useLesson } from '../../hooks/useLesson';
 import { useLessonTranslation } from '../../hooks/useLessonTranslation';
+import { useLessonAudio } from '../../hooks/useLessonAudio';
 import { usePdfExport } from '../../hooks/usePdfExport';
 import { Button, Spinner, ErrorState } from '../../components/common';
 import { BlockRenderer } from '../../components/lesson/BlockRenderer';
 import { LessonToolbar } from '../../components/lesson/LessonToolbar';
+import { AudioPlayer } from '../../components/lesson/AudioPlayer';
 import { GenerationProgress } from '../../components/generation/GenerationProgress';
-import { LESSON_STAGE_LABELS, TRANSLATION_STAGE_LABELS } from '../../components/generation/stageLabels';
+import { LESSON_STAGE_LABELS, TRANSLATION_STAGE_LABELS, AUDIO_STAGE_LABELS } from '../../components/generation/stageLabels';
 import { coursePath, lessonPath } from '../../utils/paths';
 
 const QuizSummary = ({ quiz }) => {
@@ -69,11 +71,28 @@ export default function Learn() {
   // English regardless of what the last one was showing. Reset in the same
   // render that changed the lesson, before the old language is painted against
   // new content.
+  const audio = useLessonAudio({ courseId, moduleId, lessonId });
+  const [showPlayer, setShowPlayer] = useState(false);
+
   const [renderedLessonId, setRenderedLessonId] = useState(lessonId);
   if (renderedLessonId !== lessonId) {
     setRenderedLessonId(lessonId);
     setLanguage('english');
+    // The player is dismissed on navigation rather than carried over: it would
+    // otherwise keep reading the previous lesson under the new one's text.
+    setShowPlayer(false);
   }
+
+  // Opens the player and asks for audio the first time; toggles it thereafter.
+  const handleListen = useCallback(() => {
+    if (audio.hasAudio) {
+      setShowPlayer((visible) => !visible);
+      return;
+    }
+
+    setShowPlayer(true);
+    audio.request();
+  }, [audio]);
 
   const showingHinglish = language === 'hinglish' && Boolean(translation.content);
 
@@ -205,11 +224,18 @@ export default function Learn() {
           <LessonToolbar
             handlers={{
               pdf: lesson.status === 'READY' ? exportPdf : undefined,
-              // Nothing to translate until there is content.
+              // Nothing to translate or read aloud until there is content.
               hinglish: lesson.status === 'READY' ? handleHinglish : undefined,
+              tts: lesson.status === 'READY' ? handleListen : undefined,
             }}
-            busy={{ pdf: isExporting, hinglish: translation.isPending }}
-            active={{ hinglish: showingHinglish }}
+            busy={{
+              pdf: isExporting,
+              hinglish: translation.isPending,
+              // Busy only until the first section is playable — after that the
+              // player itself shows that more is still coming.
+              tts: audio.isPreparing,
+            }}
+            active={{ hinglish: showingHinglish, tts: showPlayer && audio.hasAudio }}
           />
         </div>
 
@@ -283,6 +309,28 @@ export default function Learn() {
         </div>
       )}
 
+      {/* Only while there is genuinely nothing to listen to. Once the first
+          section lands the player takes over and reports its own progress. */}
+      {isReady && showPlayer && audio.isPreparing && (
+        <div className="mt-6">
+          <GenerationProgress
+            generation={audio.generation}
+            stageLabels={AUDIO_STAGE_LABELS}
+            title="Recording this lesson"
+            idleLabel="Getting started"
+          />
+        </div>
+      )}
+
+      {isReady && audio.error && !audio.hasAudio && (
+        <div className="mt-6">
+          <ErrorState title="We couldn't record this lesson" message={audio.error} />
+          <Button className="mt-4" variant="secondary" onClick={audio.retry}>
+            Try again
+          </Button>
+        </div>
+      )}
+
       {isReady && translation.error && !translation.isPending && (
         <div className="mt-6">
           <ErrorState
@@ -313,6 +361,21 @@ export default function Learn() {
           <div className="mt-10">
             <QuizSummary quiz={quiz} />
           </div>
+
+          {/* Mounted as soon as one section is playable, not when the whole
+              lesson is done — listening starts while the rest is still being
+              recorded, which is the entire point of segmenting it. */}
+          {showPlayer && audio.hasAudio && (
+            <AudioPlayer
+              // Every section, not just the recorded ones, so the track list can
+              // show what is still coming and the player knows to park rather
+              // than stop when it reaches one.
+              segments={audio.segments}
+              isGenerating={audio.isGenerating}
+              totalExpected={audio.segments.length}
+              onClose={() => setShowPlayer(false)}
+            />
+          )}
         </>
       )}
 

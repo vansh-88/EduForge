@@ -182,6 +182,11 @@ const TRANSLATION_TERMINAL = [
   'course_deleted',
 ];
 
+// Note what is absent: 'audio_segment_ready'. A section becoming playable is the
+// start of listening, not the end of generating — closing there would drop every
+// remaining section, which is the opposite of what progressive playback needs.
+const AUDIO_TERMINAL = ['audio_completed', 'audio_failed', 'course_deleted'];
+
 export const streamCourseGeneration = (courseId, handlers) =>
   openStream(`/v1/courses/${courseId}/generation/events`, {
     ...handlers,
@@ -203,4 +208,11 @@ export const streamLessonTranslation = (courseId, moduleId, lessonId, language, 
   openStream(
     `/v1/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/translations/${language}/events`,
     { ...handlers, terminalTypes: TRANSLATION_TERMINAL }
+  );
+
+/** Carries each section's URL as it becomes playable, plus the job's own lifecycle. */
+export const streamLessonAudio = (courseId, moduleId, lessonId, handlers) =>
+  openStream(
+    `/v1/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio/events`,
+    { ...handlers, terminalTypes: AUDIO_TERMINAL }
   );

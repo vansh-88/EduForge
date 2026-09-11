@@ -88,6 +88,42 @@ export const getTranslation = async (courseId, moduleId, lessonId, language = 'h
   return response.data.data;
 };
 
+/**
+ * Asks for spoken audio of this lesson, generating it if there isn't any.
+ *
+ * A 200 means it was already made; a 202 means a job is running. Both bodies
+ * carry `segments`, because audio is usable before it is complete — a reader who
+ * reloads mid-generation gets back every section that is already playable rather
+ * than starting from silence.
+ *
+ * Idempotent: a lesson's worth of speech is the most expensive thing this app can
+ * be asked to make by accident.
+ */
+export const requestAudio = async (courseId, moduleId, lessonId) => {
+  const response = await apiClient.post(
+    `${lessonPath(courseId, moduleId, lessonId)}/audio`,
+    {},
+    idempotent()
+  );
+
+  return response.data;
+};
+
+/**
+ * Reads a lesson's audio: `{ lessonId, status, segments, generation }`.
+ *
+ * Segments come back at every status with `audioUrl` set only on READY ones, so
+ * the player can show how many sections are coming and which it is waiting on.
+ * `NOT_REQUESTED` means nobody has asked yet; `STALE` means audio exists but the
+ * lesson has been regenerated since.
+ *
+ * Side-effect free, so it is safe to re-read on reconnect.
+ */
+export const getAudio = async (courseId, moduleId, lessonId) => {
+  const response = await apiClient.get(`${lessonPath(courseId, moduleId, lessonId)}/audio`);
+  return response.data.data;
+};
+
 export const completeLesson = async (courseId, moduleId, lessonId) => {
   const response = await apiClient.post(`${lessonPath(courseId, moduleId, lessonId)}/complete`);
   return response.data.data;
