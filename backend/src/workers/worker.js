@@ -5,6 +5,7 @@ import { courseWorker } from './course.worker.js';
 import { lessonWorker } from './lesson.worker.js';
 import { videoWorker } from './video.worker.js';
 import { translationWorker } from './translation.worker.js';
+import { ttsWorker } from './tts.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
 import { startWorkerHeartbeat, stopWorkerHeartbeat } from './heartbeat.js';
 import { redisConnection } from '../config/redis.config.js';
@@ -32,6 +33,7 @@ async function startWorkers() {
     console.log('✅ Lesson generation worker started');
     console.log('✅ Video resolution worker started');
     console.log('✅ Lesson translation worker started');
+    console.log('✅ Lesson TTS worker started');
 
     // 5. Report liveness to the API's readiness probe. Started last, so it only
     // ever reports a process that is fully wired up.
@@ -70,6 +72,8 @@ async function gracefulShutdown(signal) {
     console.log('✅ VideoWorker stopped.');
     await translationWorker.close();
     console.log('✅ TranslationWorker stopped.');
+    await ttsWorker.close();
+    console.log('✅ TtsWorker stopped.');
 
     // 3. quit Redis connection
     redisConnection.quit();

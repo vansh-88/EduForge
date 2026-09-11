@@ -75,6 +75,43 @@ const TRANSLATION_BATCH_MAX_ITEMS = Number(process.env.TRANSLATION_BATCH_MAX_ITE
 const TRANSLATION_BATCH_MAX_CHARS = Number(process.env.TRANSLATION_BATCH_MAX_CHARS || 6000);
 
 
+/*
+|--------------------------------------------------------------------------
+| Text-to-speech configuration
+|--------------------------------------------------------------------------
+|
+| Measured, not guessed: the preview TTS model takes ~12s to speak a single
+| sentence and returns headerless 24kHz PCM at 48KB/s. A whole lesson in one
+| request would be minutes of latency against a model that is both slow and
+| rate-limited, so audio is cut into section-sized segments and generated one at
+| a time.
+|
+| Concurrency is 1 deliberately. Several workers each firing a lesson's worth of
+| requests is the fastest way to trip the preview model's rate limit, and the
+| reader does not need segment 4 early — they need segment 1 now, which
+| progressive playback already gives them.
+*/
+
+
+const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+const TTS_VOICE = process.env.TTS_VOICE || 'Kore';
+const TTS_LANGUAGE = process.env.TTS_LANGUAGE || 'en';
+
+const TTS_WORKER_CONCURRENCY = Number(process.env.TTS_WORKER_CONCURRENCY || 1);
+const TTS_JOB_ATTEMPTS = Number(process.env.TTS_JOB_ATTEMPTS || 3);
+
+// Roughly 90 seconds of speech. Small enough that the first segment arrives
+// quickly, large enough that a lesson does not become dozens of requests.
+const TTS_SEGMENT_MAX_CHARS = Number(process.env.TTS_SEGMENT_MAX_CHARS || 1800);
+
+// Guards against a pathological lesson turning into an unbounded spend.
+const TTS_MAX_SEGMENTS = Number(process.env.TTS_MAX_SEGMENTS || 30);
+
+// A small gap between segment requests, since they are issued back to back
+// against a preview-tier model.
+const TTS_SEGMENT_DELAY_MS = Number(process.env.TTS_SEGMENT_DELAY_MS || 500);
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -187,6 +224,15 @@ export {
   TRANSLATION_WORKER_CONCURRENCY,
   TRANSLATION_BATCH_MAX_ITEMS,
   TRANSLATION_BATCH_MAX_CHARS,
+
+  GEMINI_TTS_MODEL,
+  TTS_VOICE,
+  TTS_LANGUAGE,
+  TTS_WORKER_CONCURRENCY,
+  TTS_JOB_ATTEMPTS,
+  TTS_SEGMENT_MAX_CHARS,
+  TTS_MAX_SEGMENTS,
+  TTS_SEGMENT_DELAY_MS,
 
   VIDEO_PROVIDER,
   YOUTUBE_API_KEY,

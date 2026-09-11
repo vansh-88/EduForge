@@ -5,6 +5,7 @@ import { courseGenerationQueue } from '../services/queue/course.queue.js';
 import { lessonGenerationQueue } from '../services/queue/lesson.queue.js';
 import { videoResolutionQueue } from '../services/queue/video.queue.js';
 import { lessonTranslationQueue } from '../services/queue/translation.queue.js';
+import { lessonTtsQueue } from '../services/queue/tts.queue.js';
 import { readWorkerHeartbeat } from '../workers/heartbeat.js';
 
 
@@ -49,6 +50,7 @@ healthRouter.get('/ready', async (req, res) => {
         lessonGenerationQueue.getWorkersCount(),
         videoResolutionQueue.getWorkersCount(),
         lessonTranslationQueue.getWorkersCount(),
+        lessonTtsQueue.getWorkersCount(),
       ])
         .then((counts) => counts.every((count) => count > 0))
         .catch(() => false),

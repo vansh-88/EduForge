@@ -115,6 +115,60 @@ function toTranslatedContentDTO(content = []) {
 }
 
 /**
+ * One audio segment, shaped for the player.
+ *
+ * `text` never leaves the server: it is a generation input — the script sent to
+ * the provider — and the reader already has the lesson it was derived from. What
+ * the player needs is where the audio is and how long it runs.
+ *
+ * A segment that is not READY still ships, carrying a null URL. The player uses
+ * the full list to show how many sections are coming and which one it is waiting
+ * on; dropping the unfinished ones would leave it unable to tell "still
+ * generating" from "that's the end".
+ */
+export function toAudioSegmentDTO(segment) {
+  return {
+    segmentId: String(segment._id),
+    sequence: segment.sequence,
+    title: segment.title ?? null,
+    status: segment.status,
+    audioUrl: segment.status === 'READY' ? segment.audioUrl : null,
+    durationSeconds: segment.durationSeconds ?? null,
+  };
+}
+
+/**
+ * A lesson's audio and all of its segments.
+ *
+ * Unlike a translation, the segments are returned at every status — audio is
+ * usable before it is complete, which is the whole reason it is segmented.
+ */
+export function toAudioDTO(audio, { lessonId, segments = [] } = {}) {
+  return {
+    lessonId: String(lessonId ?? audio.lesson),
+    audioId: String(audio._id),
+    language: audio.language,
+    voice: audio.voice,
+    status: audio.status,
+    totalSegments: audio.totalSegments,
+    readySegments: audio.readySegments,
+    durationSeconds: audio.durationSeconds,
+    segments: [...segments]
+      .sort((a, b) => a.sequence - b.sequence)
+      .map(toAudioSegmentDTO),
+    generation: {
+      status: audio.status,
+      attempt: audio.attempts,
+      maxAttempts: audio.maxAttempts,
+      stage: audio.stage,
+      progress: audio.progress,
+      lastError: audio.status === 'FAILED' ? audio.lastError : null,
+      completedAt: audio.completedAt,
+    },
+  };
+}
+
+/**
  * One lesson translation, shaped for the reader.
  *
  * Content is omitted entirely unless READY, so a client cannot render a partial

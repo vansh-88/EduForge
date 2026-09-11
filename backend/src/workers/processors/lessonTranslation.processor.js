@@ -1,4 +1,6 @@
+import { UnrecoverableError } from 'bullmq';
 import { Lesson, LessonTranslation } from '../../models/index.js';
+import { ProviderQuotaError, toReaderMessage } from '../../services/ai/providerError.js';
 import { translationOutputSchema } from '../../schemas/index.js';
 import { generateStructured } from '../../services/ai/aiService.js';
 import { buildHinglishPrompt } from '../../services/ai/prompts/hinglishPrompt.js';
@@ -191,8 +193,14 @@ export async function runLessonTranslation({ translationId, lessonId, language, 
     return { translationId, status: 'READY' };
 
   } catch (error) {
-    const isFinalAttempt = currentAttempt >= maxAttempts;
-    const lastError = `Attempt ${currentAttempt}/${maxAttempts} failed: ${error.message}`;
+    // See the TTS processor: a daily quota rejection is refused in milliseconds,
+    // so retrying it burns the whole budget in seconds and reports the wrong
+    // cause to the reader.
+    const exhausted = error instanceof ProviderQuotaError && error.daily;
+
+    const isFinalAttempt = exhausted || currentAttempt >= maxAttempts;
+    const readerMessage = toReaderMessage(error);
+    const lastError = readerMessage ?? `Attempt ${currentAttempt}/${maxAttempts} failed: ${error.message}`;
 
     // Guarded by our own claim: without it, a throw occurring AFTER the row was
     // already committed READY would demote a good translation.
@@ -216,6 +224,11 @@ export async function runLessonTranslation({ translationId, lessonId, language, 
       maxAttempts,
       lastError,
     });
+
+    if (exhausted) {
+      console.error(`[TranslationWorker] 🚫 ${error.message} — not retrying.`);
+      throw new UnrecoverableError(lastError);
+    }
 
     throw error;
   }

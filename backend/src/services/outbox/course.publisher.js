@@ -4,6 +4,7 @@ import { OUTBOX_POLL_INTERVAL_MS, OUTBOX_BATCH_SIZE, OUTBOX_MAX_ATTEMPTS } from 
 import {lessonGenerationQueue} from '../queue/lesson.queue.js';
 import { videoResolutionQueue } from '../queue/video.queue.js';
 import { lessonTranslationQueue } from '../queue/translation.queue.js';
+import { lessonTtsQueue } from '../queue/tts.queue.js';
 
 // Configuration
 const OUTBOX_LOCK_TIME_MS = 30_000; // Rescue stuck events after 30 seconds
@@ -38,6 +39,13 @@ const EVENT_ROUTER = {
   'LESSON_TRANSLATION_REQUESTED': async (payload, eventId) => {
     await lessonTranslationQueue.add(
       'translate-lesson',
+      payload,
+      { jobId: eventId } // BullMQ idempotency lock
+    );
+  },
+  'LESSON_TTS_REQUESTED': async (payload, eventId) => {
+    await lessonTtsQueue.add(
+      'synthesize-lesson',
       payload,
       { jobId: eventId } // BullMQ idempotency lock
     );

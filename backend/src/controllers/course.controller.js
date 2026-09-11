@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration, retryCourseGeneration as retryCourseGenerationService } from '../services/course/course.service.js';
-import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot, LessonTranslation } from '../models/index.js';
+import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot, LessonTranslation, LessonAudio, LessonAudioSegment } from '../models/index.js';
 import mongoose from 'mongoose';
 import { computeProgress, getOrCreateProgress } from '../services/progress/progress.service.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { publishCourseDeleted } from '../services/realtime/generationEvents.js';
+import { destroyLessonAudio } from '../services/media/audio.service.js';
 import { toCourseCardDTO, toCourseDetailDTO } from '../serializers/course.serializer.js';
 
 
@@ -211,6 +212,7 @@ export const deleteCourse = async (req, res) => {
   // Translation events are keyed by the translation's own id, not the lesson's,
   // so they have to be collected separately to be cleaned out of the outbox below.
   const translationIds = await LessonTranslation.find({ course: course._id }).distinct('_id');
+  const audioIds = await LessonAudio.find({ course: course._id }).distinct('_id');
 
   await Promise.all([
     Lesson.deleteMany({ module: { $in: moduleIds } }),
@@ -222,13 +224,15 @@ export const deleteCourse = async (req, res) => {
     VideoSlot.deleteMany({ course: course._id }),
     // Translations carry the course id for exactly the same reason.
     LessonTranslation.deleteMany({ course: course._id }),
+    LessonAudio.deleteMany({ course: course._id }),
+    LessonAudioSegment.deleteMany({ course: course._id }),
     // Drop generation work not yet dispatched, for the course and for every lesson
     // (lesson events are keyed by lessonId, not courseId). PROCESSING is included
     // because the publisher rescues stale PROCESSING rows after OUTBOX_LOCK_TIME_MS
     // and would otherwise re-dispatch one. Already-running jobs bounce off the claim
     // harmlessly, since the documents no longer exist.
     OutboxEvent.deleteMany({
-      aggregateId: { $in: [course._id, ...lessonIds, ...translationIds] },
+      aggregateId: { $in: [course._id, ...lessonIds, ...translationIds, ...audioIds] },
       status: { $in: ['PENDING', 'PROCESSING'] },
     }),
   ]);
@@ -237,6 +241,11 @@ export const deleteCourse = async (req, res) => {
   // single publish on the fan-out channel they all subscribe to. Published after the
   // cascade so a client that reacts by re-fetching gets a clean 404 rather than
   // racing the deletes. Best-effort by design: publishing swallows its own errors.
+  // The audio bytes live in Cloudinary, so deleting the rows is only half the
+  // cascade. Best-effort and after the fact: an orphaned object costs storage,
+  // but a failed purge must not fail a delete MongoDB has already committed.
+  await Promise.all(lessonIds.map((id) => destroyLessonAudio(id)));
+
   await publishCourseDeleted(course._id);
 
   return res.status(200).json({

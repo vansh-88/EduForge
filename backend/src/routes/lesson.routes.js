@@ -3,6 +3,8 @@ import { generateLesson, getLesson, getLessonVideoSlots, submitLessonAnswer, com
 import { streamLessonGenerationEvents } from '../controllers/lessonEvents.controller.js';
 import { requestTranslation, getTranslation } from '../controllers/translation.controller.js';
 import { streamLessonTranslationEvents } from '../controllers/lessonTranslationEvents.controller.js';
+import { requestAudio, getAudio } from '../controllers/audio.controller.js';
+import { streamLessonAudioEvents } from '../controllers/lessonAudioEvents.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { submitAnswerSchema, requestTranslationSchema } from '../schemas/index.js';
 import { generationRateLimiter } from '../middlewares/rateLimit.middleware.js';
@@ -32,6 +34,13 @@ lessonRouter.get('/:lessonId/translations/:language', getTranslation);
 // the lesson is READY, by which point the lesson's generation stream has already
 // reached its terminal state and closed.
 lessonRouter.get('/:lessonId/translations/:language/events', streamLessonTranslationEvents);
+
+// Lesson audio: the same lazy, cached, hash-keyed artifact pattern as
+// translations. POST spends real TTS calls and so shares the generation limiter;
+// GET never starts one, so a player may re-read it on reconnect.
+lessonRouter.post('/:lessonId/audio', generationRateLimiter, requestAudio);
+lessonRouter.get('/:lessonId/audio', getAudio);
+lessonRouter.get('/:lessonId/audio/events', streamLessonAudioEvents);
 
 // Authenticated by the requireAuth/attachUser pair on the parent /v1/courses mount.
 // The Authorization header is the only accepted credential, so the client must use a fetch-based SSE library rather than the browser's native EventSource.

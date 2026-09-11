@@ -48,6 +48,17 @@ export function translationChannel(lessonId, language) {
 }
 
 /**
+ * Channel for one lesson's generated audio.
+ *
+ * Its own channel for the same reason translations have one: audio is requested
+ * after the lesson is READY, when the lesson's generation stream has already
+ * reached its terminal state and closed.
+ */
+export function audioChannel(lessonId) {
+  return `lesson:audio:${lessonId}`;
+}
+
+/**
  * The single definition of a generation event's shape. Accepts either a MongoDB
  * status ('PROCESSING') or an already-normalized one ('generating'), so workers and
  * SSE snapshots can both build events through it.
@@ -156,6 +167,45 @@ export async function publishEnrichmentCompleted(lessonId) {
  */
 export async function publishTranslationEvent(lessonId, language, descriptor) {
   await publishTo(translationChannel(lessonId, language), toGenerationEvent(descriptor));
+}
+
+/**
+ * Progress on one lesson's audio as a whole.
+ *
+ * Goes through toGenerationEvent — audio has its own lifecycle with stages,
+ * progress and retries, exactly the shape that function describes.
+ */
+export async function publishAudioEvent(lessonId, descriptor) {
+  await publishTo(audioChannel(lessonId), toGenerationEvent(descriptor));
+}
+
+/**
+ * Announces that one segment is playable.
+ *
+ * This is the event progressive playback is built on: the reader starts
+ * listening to section one while the rest are still being synthesized, which
+ * matters because the provider needs roughly twelve seconds per sentence.
+ *
+ * Like the video slot events, it deliberately does NOT go through
+ * toGenerationEvent — it describes a sibling resource, not the audio's own
+ * lifecycle, and forcing it into that shape would mean publishing a stage and a
+ * progress figure that a client could mistake for the whole job resetting.
+ *
+ * The URL is carried on the event rather than left to a follow-up read: unlike a
+ * video slot, a segment is immutable once READY, so there is no risk of the event
+ * disagreeing with the database — and making the reader wait for a round trip
+ * before audio can start would undo the point of segmenting at all.
+ */
+export async function publishAudioSegmentEvent(lessonId, { segmentId, sequence, status, audioUrl = null, title = null, durationSeconds = null }) {
+  await publishTo(audioChannel(lessonId), {
+    type: `audio_segment_${status.toLowerCase()}`,
+    segmentId,
+    sequence,
+    status: status.toLowerCase(),
+    audioUrl,
+    title,
+    durationSeconds,
+  });
 }
 
 /**
