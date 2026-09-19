@@ -56,3 +56,22 @@ export async function embedTexts(texts, options) {
 
     return await provider.embed(texts, options);
 }
+
+
+/**
+ * One tutor turn, returned whole.
+ *
+ * Routed through the facade like the others so callers depend on the service layer
+ * and a second chat vendor stays a change to services/ai/index.js alone.
+ *
+ * No validation step: unlike generateStructured there is no schema to check against.
+ * The provider either produced prose or threw.
+ */
+export async function chat(params) {
+
+    if (typeof provider.chat !== 'function') {
+        throw new Error('The configured AI provider does not support chat');
+    }
+
+    return await provider.chat(params);
+}

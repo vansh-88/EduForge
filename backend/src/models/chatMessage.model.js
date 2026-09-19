@@ -104,11 +104,17 @@ const chatMessageSchema = new mongoose.Schema(
       default: [],
     },
 
-    // Supplied by the client so a network retry re-sends the same question
-    // instead of asking it twice. Only user messages carry one.
+    /**
+     * Supplied by the client so a network retry re-sends the same question instead
+     * of asking it twice. Only user messages carry one.
+     *
+     * Deliberately NO `default: null`. An absent field and a field explicitly set to
+     * null index differently, and the partial index below keys on the field being a
+     * string — storing nulls would mean every assistant message carries a value that
+     * means nothing and has to be excluded everywhere it is read.
+     */
     clientMessageId: {
       type: String,
-      default: null,
     },
   },
   { timestamps: true }
@@ -117,11 +123,22 @@ const chatMessageSchema = new mongoose.Schema(
 // The conversation itself, in order. Every read of a session uses this.
 chatMessageSchema.index({ session: 1, createdAt: 1 });
 
-// The idempotency guarantee. Sparse because assistant messages have no client id
-// and a non-sparse unique index would collide on the first two of them.
+/*
+ * The idempotency guarantee.
+ *
+ * PARTIAL, not sparse. A sparse unique index excludes documents where the field is
+ * ABSENT — it does not exclude documents where the field is null, which every
+ * assistant message would be. That distinction is easy to miss and fails late: the
+ * first message in a session inserts fine and the second collides on
+ * `clientMessageId: null`, so a conversation breaks on its second turn rather than
+ * on a migration.
+ *
+ * The partial filter says exactly what is meant: uniqueness applies to messages that
+ * actually carry a client id, and nothing else is indexed at all.
+ */
 chatMessageSchema.index(
   { session: 1, clientMessageId: 1 },
-  { unique: true, sparse: true }
+  { unique: true, partialFilterExpression: { clientMessageId: { $type: 'string' } } }
 );
 
 // Cascade on course delete.

@@ -4,12 +4,17 @@ import { streamCourseGenerationEvents } from '../controllers/courseEvents.contro
 import { validate} from '../middlewares/validate.middleware.js';
 import { generateCourseRequestSchema, listCoursesQuerySchema } from '../schemas/index.js';
 import { lessonRouter } from './lesson.routes.js';
+import { chatRouter } from './chat.routes.js';
 import { generationRateLimiter, writeRateLimiter, streamRateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 
 export const courseRouter = Router();
 
 courseRouter.use('/:courseId/modules/:moduleId/lessons', lessonRouter);
+
+// The Course Tutor. Scoped to the course, not to a lesson — a session may be
+// lesson-level or course-level, and retrieval is bounded by the course either way.
+courseRouter.use('/:courseId/chat', chatRouter);
 
 // Both spend a real AI call, so both sit behind the per-user limiter.
 courseRouter.post('/generate', generationRateLimiter, validate(generateCourseRequestSchema), generateCourse);

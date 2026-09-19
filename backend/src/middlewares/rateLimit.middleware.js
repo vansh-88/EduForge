@@ -7,6 +7,7 @@ import {
   RATE_LIMIT_STREAM_MAX,
   RATE_LIMIT_GENERATION_MAX,
   RATE_LIMIT_AUDIO_MAX,
+  RATE_LIMIT_CHAT_MAX,
 } from '../config/env.config.js';
 
 /**
@@ -97,6 +98,23 @@ export const generationRateLimiter = makeLimiter({
   windowMs: 60 * 60 * 1000,
   limit: RATE_LIMIT_GENERATION_MAX,
   message: 'Too many generation requests. Please try again later.',
+});
+
+/**
+ * One tutor message.
+ *
+ * Between the write and generation tiers, because that is genuinely where it sits:
+ * one text generation plus one small embedding to retrieve with. What makes it its
+ * own bucket rather than a share of the generation tier is shape, not size — a
+ * lesson is one request a user makes occasionally, while a conversation is a burst
+ * of them, and pricing the two the same either throttles ordinary conversation or
+ * leaves generation wide open.
+ */
+export const chatRateLimiter = makeLimiter({
+  name: 'chat',
+  windowMs: 60 * 60 * 1000,
+  limit: RATE_LIMIT_CHAT_MAX,
+  message: 'Too many tutor messages. Please try again later.',
 });
 
 /** One provider call per lesson section — the most expensive thing a user can ask for. */

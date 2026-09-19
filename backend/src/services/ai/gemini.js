@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE, GEMINI_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '../../config/env.config.js';
+import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE, GEMINI_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, CHAT_MODEL, CHAT_MAX_OUTPUT_TOKENS } from '../../config/env.config.js';
 import {z} from 'zod';
 import { sanitizeForGemini } from '../../utils/gemini/sanitiseJson.js';
 import { pcmToWav, parsePcmMimeType, pcmDurationSeconds } from '../../utils/audio/wav.js';
@@ -173,6 +173,71 @@ export const geminiProvider = {
             audio: pcmToWav(pcm, format),
             mimeType: 'audio/wav',
             durationSeconds: pcmDurationSeconds(pcm, format),
+        };
+    },
+
+
+    /**
+     * A conversational turn, returned whole.
+     *
+     * The fourth provider method, and the first that is neither structured nor
+     * single-shot: it takes a message history and a system instruction rather than
+     * one prompt string. generateStructured cannot serve this — it forces a JSON
+     * response schema, and a tutor's answer is prose.
+     *
+     * The system instruction goes through config.systemInstruction rather than being
+     * concatenated into the first turn. That is what keeps the rules the model must
+     * follow in a different channel from the course content it reasons over, which
+     * matters because that content is generated text and may say anything.
+     *
+     * @param {{ systemInstruction: string, contents: Array, maxOutputTokens?: number }} params
+     * @returns {Promise<{ text: string, inputTokens: number|null, outputTokens: number|null, finishReason: string|null }>}
+     */
+    async chat({ systemInstruction, contents, maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS }) {
+
+        await assertCanSpend(CHAT_MODEL);
+
+        let response;
+        try {
+            await recordSpend(CHAT_MODEL);
+            response = await gemini.models.generateContent({
+                model: CHAT_MODEL,
+                contents,
+                config: {
+                    systemInstruction,
+                    maxOutputTokens,
+                    // Lower than course generation's 0.7. Explaining a fixed body of
+                    // material rewards consistency, not invention — two students
+                    // asking the same question about the same lesson should not get
+                    // materially different explanations.
+                    temperature: 0.4,
+                },
+            });
+        } catch (error) {
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                await markExhausted(CHAT_MODEL);
+            }
+            throw classified;
+        }
+
+        const text = response.text;
+
+        if (!text?.trim()) {
+            // Usually a safety block or an immediate token-limit stop. There is no
+            // answer to persist, and the caller must report a failure rather than
+            // save an empty assistant turn into the conversation.
+            const reason = response.candidates?.[0]?.finishReason ?? 'unknown';
+            throw new Error(`The model returned no answer (finishReason: ${reason})`);
+        }
+
+        const usage = response.usageMetadata ?? {};
+
+        return {
+            text,
+            inputTokens: usage.promptTokenCount ?? null,
+            outputTokens: usage.candidatesTokenCount ?? null,
+            finishReason: response.candidates?.[0]?.finishReason ?? null,
         };
     },
 
