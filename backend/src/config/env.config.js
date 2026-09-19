@@ -269,6 +269,36 @@ const CHAT_ALLOW_GENERAL_KNOWLEDGE = process.env.CHAT_ALLOW_GENERAL_KNOWLEDGE !=
 
 const CHAT_RETRIEVAL_TOP_K = Number(process.env.CHAT_RETRIEVAL_TOP_K || 5);
 
+/*
+ * The similarity below which a chunk is not course context at all.
+ *
+ * Cosine similarity always returns a ranking, however unrelated the question — ask a
+ * system design course about a cricket match and it will still hand back its five
+ * closest chunks at around 0.75. Without a floor those arrive in the prompt labelled
+ * as relevant course content, and the model either strains to answer from them or
+ * spends its context ignoring them.
+ *
+ * Measured against this corpus with gemini-embedding-001 at 768 dimensions:
+ *
+ *   on-topic     ("explain the client-server model")   0.834 - 0.875
+ *   adjacent     ("what is Big-O notation?")           0.789 - 0.793
+ *   off-topic    ("who won the cricket match?")        0.741 - 0.768
+ *
+ * 0.78 sits in the gap. Adjacent questions keep their top chunk or two — which is
+ * what lets the tutor say the course assumes Big-O rather than pretending it covers
+ * it — while genuinely unrelated questions retrieve nothing at all.
+ *
+ * Corpus- and model-specific: re-measure if either changes.
+ */
+const CHAT_RETRIEVAL_MIN_SCORE = Number(process.env.CHAT_RETRIEVAL_MIN_SCORE || 0.78);
+
+// How much a chunk from the lesson being read outranks an equally similar chunk
+// from elsewhere in the course. Deliberately mild: the reader's own lesson is the
+// most likely place their question comes from, but a firmer thumb on the scale
+// would bury the passage in lesson 7 that actually answers it — which is the whole
+// reason retrieval searches the course rather than just the page.
+const CHAT_CURRENT_LESSON_BOOST = Number(process.env.CHAT_CURRENT_LESSON_BOOST || 1.1);
+
 const CHAT_HISTORY_MAX_MESSAGES = Number(process.env.CHAT_HISTORY_MAX_MESSAGES || 12);
 const CHAT_CONTEXT_LESSON_MAX_CHARS = Number(process.env.CHAT_CONTEXT_LESSON_MAX_CHARS || 8000);
 const CHAT_CONTEXT_RETRIEVED_MAX_CHARS = Number(process.env.CHAT_CONTEXT_RETRIEVED_MAX_CHARS || 6000);
@@ -432,6 +462,8 @@ export {
   CHAT_MODEL,
   CHAT_ALLOW_GENERAL_KNOWLEDGE,
   CHAT_RETRIEVAL_TOP_K,
+  CHAT_RETRIEVAL_MIN_SCORE,
+  CHAT_CURRENT_LESSON_BOOST,
   CHAT_HISTORY_MAX_MESSAGES,
   CHAT_CONTEXT_LESSON_MAX_CHARS,
   CHAT_CONTEXT_RETRIEVED_MAX_CHARS,
