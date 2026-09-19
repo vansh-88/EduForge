@@ -32,13 +32,19 @@ const SENTENCE_BOUNDARY = /(?<=[.!?])\s+/;
 /**
  * The text a single block contributes to the index.
  *
+ * Exported because the context builder renders the current lesson verbatim into the
+ * tutor's prompt and must do it EXACTLY as indexing did. If the two drifted, a
+ * retrieved chunk and the same passage rendered inline would no longer be
+ * recognisably the same text, and the de-duplication that stops the model being
+ * handed one passage twice would quietly stop working.
+ *
  * Returns null for anything with nothing to retrieve on. Note `video`: the
  * `query` field is search intent written for YouTube, never read by a human and
  * frequently a bag of keywords — indexing it would put noise into the corpus
  * that competes with real prose. Its caption is ordinary text about the lesson,
  * so that alone is kept.
  */
-function blockToText(block) {
+export function blockToText(block) {
   switch (block?.type) {
     case 'heading':
       return typeof block.text === 'string' ? block.text.trim() : null;
