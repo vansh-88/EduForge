@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "worker": "node src/workers/worker.js"
+    "worker": "node src/workers/worker.js",
+    "search-index": "node src/bin/ensureSearchIndexes.js"
   },
   "author": "",
   "license": "ISC",

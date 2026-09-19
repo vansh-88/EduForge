@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { generateCourseRequestSchema } from '../schemas/index.js';
 import { newCourseGeneration, retryCourseGeneration as retryCourseGenerationService } from '../services/course/course.service.js';
-import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot, LessonTranslation, LessonAudio, LessonAudioSegment } from '../models/index.js';
+import { Course, Module, Lesson, CourseProgress, LessonQuizAttempt, OutboxEvent, VideoSlot, LessonTranslation, LessonAudio, LessonAudioSegment, ChatSession, ChatMessage, CourseChunk } from '../models/index.js';
 import mongoose from 'mongoose';
 import { computeProgress, getOrCreateProgress } from '../services/progress/progress.service.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
@@ -226,6 +226,12 @@ export const deleteCourse = async (req, res) => {
     LessonTranslation.deleteMany({ course: course._id }),
     LessonAudio.deleteMany({ course: course._id }),
     LessonAudioSegment.deleteMany({ course: course._id }),
+    // The tutor's conversations and the knowledge index behind them. Messages
+    // carry the course id for the same reason everything else here does — so this
+    // is one query rather than a walk through the sessions.
+    ChatSession.deleteMany({ course: course._id }),
+    ChatMessage.deleteMany({ course: course._id }),
+    CourseChunk.deleteMany({ course: course._id }),
     // Drop generation work not yet dispatched, for the course and for every lesson
     // (lesson events are keyed by lessonId, not courseId). PROCESSING is included
     // because the publisher rescues stale PROCESSING rows after OUTBOX_LOCK_TIME_MS
