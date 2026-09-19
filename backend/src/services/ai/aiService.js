@@ -33,3 +33,26 @@ export async function synthesizeSpeech(text, options) {
 
     return await provider.synthesizeSpeech(text, options);
 }
+
+
+/**
+ * Embeds `texts`, returning one vector per input in the same order.
+ *
+ * Routed through the service layer like the other two so callers depend on the
+ * facade rather than reaching for a provider directly, and a second embedding
+ * vendor stays a change to services/ai/index.js alone.
+ *
+ * No validation step: the provider already checked that it returned the right
+ * number of vectors at the right dimension, which is the only contract there is.
+ *
+ * @param {string[]} texts
+ * @param {{ taskType?: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' }} options
+ */
+export async function embedTexts(texts, options) {
+
+    if (typeof provider.embed !== 'function') {
+        throw new Error('The configured AI provider does not support embeddings');
+    }
+
+    return await provider.embed(texts, options);
+}

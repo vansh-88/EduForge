@@ -5,6 +5,7 @@ import {lessonGenerationQueue} from '../queue/lesson.queue.js';
 import { videoResolutionQueue } from '../queue/video.queue.js';
 import { lessonTranslationQueue } from '../queue/translation.queue.js';
 import { lessonTtsQueue } from '../queue/tts.queue.js';
+import { lessonIndexingQueue } from '../queue/knowledge.queue.js';
 
 // Configuration
 const OUTBOX_LOCK_TIME_MS = 30_000; // Rescue stuck events after 30 seconds
@@ -46,6 +47,13 @@ const EVENT_ROUTER = {
   'LESSON_TTS_REQUESTED': async (payload, eventId) => {
     await lessonTtsQueue.add(
       'synthesize-lesson',
+      payload,
+      { jobId: eventId } // BullMQ idempotency lock
+    );
+  },
+  'LESSON_INDEX_REQUESTED': async (payload, eventId) => {
+    await lessonIndexingQueue.add(
+      'index-lesson',
       payload,
       { jobId: eventId } // BullMQ idempotency lock
     );

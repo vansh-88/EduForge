@@ -1,6 +1,6 @@
 import { redisConnection } from '../../config/redis.config.js';
-import { AI_DAILY_REQUEST_BUDGET, AI_TTS_DAILY_REQUEST_BUDGET } from '../../config/env.config.js';
-import { GEMINI_MODEL, GEMINI_TTS_MODEL } from '../../config/env.config.js';
+import { AI_DAILY_REQUEST_BUDGET, AI_TTS_DAILY_REQUEST_BUDGET, AI_EMBEDDING_DAILY_REQUEST_BUDGET } from '../../config/env.config.js';
+import { GEMINI_MODEL, GEMINI_TTS_MODEL, GEMINI_EMBEDDING_MODEL } from '../../config/env.config.js';
 import { ProviderQuotaError } from './providerError.js';
 
 /**
@@ -57,6 +57,10 @@ const breakerKey = (model) => `ai:exhausted:${model}`;
 /** The configured daily allowance for a model. */
 export function budgetFor(model) {
   if (model === GEMINI_TTS_MODEL) return AI_TTS_DAILY_REQUEST_BUDGET;
+  // Its own bucket rather than a share of the general one: indexing a back
+  // catalogue of courses is a single burst of many calls, and it must not be able
+  // to spend the allowance that lesson generation depends on.
+  if (model === GEMINI_EMBEDDING_MODEL) return AI_EMBEDDING_DAILY_REQUEST_BUDGET;
   return AI_DAILY_REQUEST_BUDGET;
 }
 
@@ -147,7 +151,7 @@ export async function assertCanSpend(model, count = 1) {
 
 /** A snapshot for the readiness probe and for telling a user why something is unavailable. */
 export async function quotaStatus() {
-  const models = [...new Set([GEMINI_MODEL, GEMINI_TTS_MODEL])];
+  const models = [...new Set([GEMINI_MODEL, GEMINI_TTS_MODEL, GEMINI_EMBEDDING_MODEL])];
 
   const rows = await Promise.all(
     models.map(async (model) => ({

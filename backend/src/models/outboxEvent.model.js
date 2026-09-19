@@ -19,6 +19,7 @@ const outboxEventSchema = new mongoose.Schema(
         'VIDEO_SLOT_RESOLUTION_REQUESTED',
         'LESSON_TRANSLATION_REQUESTED',
         'LESSON_TTS_REQUESTED',
+        'LESSON_INDEX_REQUESTED',
       ],
     },
 

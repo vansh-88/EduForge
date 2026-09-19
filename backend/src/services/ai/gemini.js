@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE } from '../../config/env.config.js';
+import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE, GEMINI_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '../../config/env.config.js';
 import {z} from 'zod';
 import { sanitizeForGemini } from '../../utils/gemini/sanitiseJson.js';
 import { pcmToWav, parsePcmMimeType, pcmDurationSeconds } from '../../utils/audio/wav.js';
@@ -10,6 +10,25 @@ import { assertCanSpend, recordSpend, markExhausted } from './quota.js';
 export const gemini = new GoogleGenAI({
   apiKey: GEMINI_API_KEY,
 });
+
+/**
+ * Scales a vector to unit length.
+ *
+ * Gemini only returns pre-normalized embeddings at its native 3072 dimensions.
+ * Anything shorter is that vector truncated, which is a valid embedding but no
+ * longer unit length — and an un-normalized vector makes magnitude, which carries
+ * no meaning here, leak into similarity scores. Cheaper to fix once on write than
+ * to account for on every query.
+ *
+ * A zero vector cannot be normalized and is returned unchanged; the caller's
+ * length check has already established it is the right shape, and a chunk that
+ * embeds to zero would have failed upstream.
+ */
+function normalize(values) {
+  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  if (!magnitude) return values;
+  return values.map((value) => value / magnitude);
+}
 
 export const geminiProvider = {
 
@@ -155,6 +174,81 @@ export const geminiProvider = {
             mimeType: 'audio/wav',
             durationSeconds: pcmDurationSeconds(pcm, format),
         };
+    },
+
+
+    /**
+     * Embeds one or more strings, returning a vector per input in the same order.
+     *
+     * A third sibling of generateStructured and synthesizeSpeech: same quota
+     * guards, same error classification, different response shape. There is no
+     * schema to validate and no text to parse — the provider either returned
+     * vectors of the expected length or it did not.
+     *
+     * Batched deliberately. A lesson is five to a dozen chunks, and sending them
+     * as one request makes indexing a whole lesson cost ONE call against the daily
+     * budget rather than a dozen — which is the difference between indexing a back
+     * catalogue and exhausting a free-tier key on it.
+     *
+     * `taskType` is not decoration. Gemini embeds a document and the question that
+     * should retrieve it into deliberately different regions, so indexing with
+     * RETRIEVAL_DOCUMENT and querying with RETRIEVAL_QUERY measurably beats using
+     * one type for both.
+     *
+     * @param {string[]} texts
+     * @param {{ taskType?: string }} options
+     * @returns {Promise<number[][]>} one L2-normalized vector per input
+     */
+    async embed(texts, { taskType = 'RETRIEVAL_DOCUMENT' } = {}) {
+
+        if (!Array.isArray(texts) || texts.length === 0) return [];
+
+        await assertCanSpend(GEMINI_EMBEDDING_MODEL);
+
+        let response;
+        try {
+            await recordSpend(GEMINI_EMBEDDING_MODEL);
+            response = await gemini.models.embedContent({
+                model: GEMINI_EMBEDDING_MODEL,
+                contents: texts,
+                config: {
+                    taskType,
+                    // Must match the Atlas index's numDimensions exactly; the index
+                    // rejects a vector of any other length on write.
+                    outputDimensionality: EMBEDDING_DIMENSIONS,
+                },
+            });
+        } catch (error) {
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                await markExhausted(GEMINI_EMBEDDING_MODEL);
+            }
+            throw classified;
+        }
+
+        const vectors = response.embeddings ?? [];
+
+        // A short response means some inputs were silently dropped, and since the
+        // caller matches vectors to chunks by position, a short array would pair
+        // every chunk after the gap with the wrong text.
+        if (vectors.length !== texts.length) {
+            throw new Error(
+                `Gemini returned ${vectors.length} embeddings for ${texts.length} inputs`
+            );
+        }
+
+        return vectors.map((vector, index) => {
+            const values = vector?.values;
+
+            if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS) {
+                throw new Error(
+                    `Gemini returned a ${values?.length ?? 0}-dimension embedding for input ${index}; ` +
+                    `EMBEDDING_DIMENSIONS is ${EMBEDDING_DIMENSIONS}`
+                );
+            }
+
+            return normalize(values);
+        });
     },
 
 
