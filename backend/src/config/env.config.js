@@ -8,6 +8,15 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 const MONGO_URI = process.env.MONGO_URI;
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 
+// How long a best-effort Redis command may take before it is abandoned.
+//
+// Applies ONLY to the fail-fast client (see config/redis.config.js): the counters,
+// caches and rate-limit reads that are supposed to degrade rather than break. Every
+// one of those is a single-key operation that completes in well under a millisecond
+// on a healthy server, so a second is already enormous — it is a ceiling on how long
+// a user waits for something optional, not a performance tuning knob.
+const REDIS_COMMAND_TIMEOUT_MS = Number(process.env.REDIS_COMMAND_TIMEOUT_MS || 1000);
+
 const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -407,6 +416,7 @@ export {
   GEMINI_MODEL,
 
   REDIS_URL,
+  REDIS_COMMAND_TIMEOUT_MS,
 
   RATE_LIMIT_READ_MAX,
   RATE_LIMIT_WRITE_MAX,

@@ -1,4 +1,4 @@
-import { redisConnection } from '../../config/redis.config.js';
+import { redisConnection, redisFailFast } from '../../config/redis.config.js';
 
 // MongoDB stores the uppercase lifecycle state; clients only ever see these
 // lowercase ones. Mapping in a single place is what keeps the SSE snapshot and the
@@ -92,7 +92,10 @@ export function toGenerationEvent({
  */
 async function publishTo(channel, event) {
   try {
-    await redisConnection.publish(channel, JSON.stringify(event));
+    // The fail-fast client: a publish is best-effort live transport, and on the
+    // shared BullMQ client an unreachable Redis would park it forever rather than
+    // reject it — turning "the client missed an event" into "the worker stopped".
+    await redisFailFast.publish(channel, JSON.stringify(event));
   } catch (error) {
     console.error(`[GenerationEvents] publish failed on ${channel}:`, error.message);
   }
@@ -216,6 +219,10 @@ export function subscribeChannels(channels, onEvent) {
   // One connection carries every channel, so watching the course-deleted fan-out
   // alongside a generation channel costs nothing extra.
   const wanted = new Set(channels);
+  // Duplicated from the PRIMARY client on purpose, not the fail-fast one. A
+  // subscriber is long-lived and wants to ride out a blip and resume: a command
+  // timeout on an idle subscription would tear down a stream that is perfectly
+  // healthy and merely quiet.
   const subscriber = redisConnection.duplicate();
 
   subscriber.on('message', (receivedChannel, message) => {

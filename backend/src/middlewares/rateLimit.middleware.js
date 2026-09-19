@@ -1,6 +1,6 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import { redisConnection } from '../config/redis.config.js';
+import { redisFailFast } from '../config/redis.config.js';
 import {
   RATE_LIMIT_READ_MAX,
   RATE_LIMIT_WRITE_MAX,
@@ -45,9 +45,24 @@ function makeLimiter({ name, windowMs, limit, message }) {
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     keyGenerator: (req) => (req.user ? `u:${req.user._id}` : ipKeyGenerator(req.ip)),
+    /*
+     * Fail OPEN when Redis is unavailable.
+     *
+     * Two settings together. The fail-fast client makes a command against a dead
+     * Redis reject quickly instead of queueing forever — on the shared BullMQ client
+     * it would never settle, and since this middleware sits in front of every
+     * authenticated route, that meant a Redis outage hung the entire API rather than
+     * merely unmetering it.
+     *
+     * passOnStoreError then decides what to do with that rejection: let the request
+     * through. Losing rate limiting during an outage is a real cost, but it is a
+     * smaller one than refusing every request — the limiter exists to price abuse,
+     * not to be a dependency the whole API is down without.
+     */
+    passOnStoreError: true,
     store: new RedisStore({
       prefix: `ratelimit:${name}:`,
-      sendCommand: (...args) => redisConnection.call(...args),
+      sendCommand: (...args) => redisFailFast.call(...args),
     }),
     handler: (req, res) => {
       // A single code the client already knows how to render, with a retry hint

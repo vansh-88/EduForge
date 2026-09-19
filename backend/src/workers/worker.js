@@ -11,7 +11,7 @@ import { ttsWorker } from './tts.worker.js';
 import { knowledgeWorker } from './knowledge.worker.js';
 import {startOutboxPublisher, stopOutboxPublisher} from '../services/outbox/course.publisher.js';
 import { startWorkerHeartbeat, stopWorkerHeartbeat } from './heartbeat.js';
-import { redisConnection } from '../config/redis.config.js';
+import { redisConnection, redisFailFast } from '../config/redis.config.js';
 
 
 /*
@@ -131,8 +131,11 @@ async function gracefulShutdown(signal) {
     await knowledgeWorker.close();
     console.log('✅ KnowledgeWorker stopped.');
 
-    // 3. quit Redis connection
+    // 3. quit both Redis connections — the queue client and the fail-fast one used
+    // by the quota counters and the heartbeat. Leaving either open holds the process
+    // alive after everything else has shut down.
     redisConnection.quit();
+    redisFailFast.quit();
     console.log('✅ Redis quitted.');
 
     // 4. Close MongoDB connection

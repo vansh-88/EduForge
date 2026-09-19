@@ -1,4 +1,4 @@
-import { redisConnection } from '../../config/redis.config.js';
+import { redisFailFast } from '../../config/redis.config.js';
 import { YOUTUBE_CACHE_TTL_DAYS } from '../../config/env.config.js';
 import { queryCacheKey } from './query.js';
 
@@ -28,7 +28,7 @@ const ttlSeconds = () => YOUTUBE_CACHE_TTL_DAYS * 24 * 60 * 60;
 export async function readCachedSearch(query) {
   let raw;
   try {
-    raw = await redisConnection.get(`${PREFIX}${queryCacheKey(query)}`);
+    raw = await redisFailFast.get(`${PREFIX}${queryCacheKey(query)}`);
   } catch {
     // A cache is an optimization; losing it means paying full price, not failing.
     return { hit: false };
@@ -46,7 +46,7 @@ export async function readCachedSearch(query) {
 
 export async function writeCachedSearch(query, video) {
   try {
-    await redisConnection.set(
+    await redisFailFast.set(
       `${PREFIX}${queryCacheKey(query)}`,
       video ? JSON.stringify(video) : MISS,
       'EX',
