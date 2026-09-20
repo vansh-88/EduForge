@@ -1,12 +1,13 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import { redisConnection } from '../config/redis.config.js';
+import { redisFailFast } from '../config/redis.config.js';
 import {
   RATE_LIMIT_READ_MAX,
   RATE_LIMIT_WRITE_MAX,
   RATE_LIMIT_STREAM_MAX,
   RATE_LIMIT_GENERATION_MAX,
   RATE_LIMIT_AUDIO_MAX,
+  RATE_LIMIT_CHAT_MAX,
 } from '../config/env.config.js';
 
 /**
@@ -44,9 +45,24 @@ function makeLimiter({ name, windowMs, limit, message }) {
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     keyGenerator: (req) => (req.user ? `u:${req.user._id}` : ipKeyGenerator(req.ip)),
+    /*
+     * Fail OPEN when Redis is unavailable.
+     *
+     * Two settings together. The fail-fast client makes a command against a dead
+     * Redis reject quickly instead of queueing forever — on the shared BullMQ client
+     * it would never settle, and since this middleware sits in front of every
+     * authenticated route, that meant a Redis outage hung the entire API rather than
+     * merely unmetering it.
+     *
+     * passOnStoreError then decides what to do with that rejection: let the request
+     * through. Losing rate limiting during an outage is a real cost, but it is a
+     * smaller one than refusing every request — the limiter exists to price abuse,
+     * not to be a dependency the whole API is down without.
+     */
+    passOnStoreError: true,
     store: new RedisStore({
       prefix: `ratelimit:${name}:`,
-      sendCommand: (...args) => redisConnection.call(...args),
+      sendCommand: (...args) => redisFailFast.call(...args),
     }),
     handler: (req, res) => {
       // A single code the client already knows how to render, with a retry hint
@@ -97,6 +113,23 @@ export const generationRateLimiter = makeLimiter({
   windowMs: 60 * 60 * 1000,
   limit: RATE_LIMIT_GENERATION_MAX,
   message: 'Too many generation requests. Please try again later.',
+});
+
+/**
+ * One tutor message.
+ *
+ * Between the write and generation tiers, because that is genuinely where it sits:
+ * one text generation plus one small embedding to retrieve with. What makes it its
+ * own bucket rather than a share of the generation tier is shape, not size — a
+ * lesson is one request a user makes occasionally, while a conversation is a burst
+ * of them, and pricing the two the same either throttles ordinary conversation or
+ * leaves generation wide open.
+ */
+export const chatRateLimiter = makeLimiter({
+  name: 'chat',
+  windowMs: 60 * 60 * 1000,
+  limit: RATE_LIMIT_CHAT_MAX,
+  message: 'Too many tutor messages. Please try again later.',
 });
 
 /** One provider call per lesson section — the most expensive thing a user can ask for. */

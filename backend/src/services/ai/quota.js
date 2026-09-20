@@ -1,6 +1,6 @@
-import { redisConnection } from '../../config/redis.config.js';
-import { AI_DAILY_REQUEST_BUDGET, AI_TTS_DAILY_REQUEST_BUDGET } from '../../config/env.config.js';
-import { GEMINI_MODEL, GEMINI_TTS_MODEL } from '../../config/env.config.js';
+import { redisFailFast } from '../../config/redis.config.js';
+import { AI_DAILY_REQUEST_BUDGET, AI_TTS_DAILY_REQUEST_BUDGET, AI_EMBEDDING_DAILY_REQUEST_BUDGET } from '../../config/env.config.js';
+import { GEMINI_MODEL, GEMINI_TTS_MODEL, GEMINI_EMBEDDING_MODEL } from '../../config/env.config.js';
 import { ProviderQuotaError } from './providerError.js';
 
 /**
@@ -57,12 +57,16 @@ const breakerKey = (model) => `ai:exhausted:${model}`;
 /** The configured daily allowance for a model. */
 export function budgetFor(model) {
   if (model === GEMINI_TTS_MODEL) return AI_TTS_DAILY_REQUEST_BUDGET;
+  // Its own bucket rather than a share of the general one: indexing a back
+  // catalogue of courses is a single burst of many calls, and it must not be able
+  // to spend the allowance that lesson generation depends on.
+  if (model === GEMINI_EMBEDDING_MODEL) return AI_EMBEDDING_DAILY_REQUEST_BUDGET;
   return AI_DAILY_REQUEST_BUDGET;
 }
 
 export async function requestsUsed(model) {
   try {
-    return Number((await redisConnection.get(counterKey(model))) ?? 0);
+    return Number((await redisFailFast.get(counterKey(model))) ?? 0);
   } catch {
     // Redis is unavailable. Report zero rather than blocking every AI call over a
     // cache outage — the provider's own 429 remains the backstop.
@@ -76,10 +80,10 @@ export async function recordSpend(model, count = 1) {
 
   try {
     const key = counterKey(model);
-    const total = await redisConnection.incrby(key, count);
+    const total = await redisFailFast.incrby(key, count);
     // Set on the first write of the day. 48h rather than exactly-until-reset so a
     // clock skew at the boundary cannot drop the day's count early.
-    if (total === count) await redisConnection.expire(key, 48 * 60 * 60);
+    if (total === count) await redisFailFast.expire(key, 48 * 60 * 60);
   } catch {
     // Best-effort, like the pub/sub publishes.
   }
@@ -95,7 +99,7 @@ export async function recordSpend(model, count = 1) {
  */
 export async function markExhausted(model, ttlSeconds = null) {
   try {
-    await redisConnection.set(breakerKey(model), '1', 'EX', ttlSeconds ?? secondsUntilReset());
+    await redisFailFast.set(breakerKey(model), '1', 'EX', ttlSeconds ?? secondsUntilReset());
   } catch {
     // If we cannot record it, the next call simply learns it from the provider again.
   }
@@ -103,7 +107,7 @@ export async function markExhausted(model, ttlSeconds = null) {
 
 export async function isExhausted(model) {
   try {
-    return (await redisConnection.get(breakerKey(model))) !== null;
+    return (await redisFailFast.get(breakerKey(model))) !== null;
   } catch {
     return false;
   }
@@ -112,7 +116,7 @@ export async function isExhausted(model) {
 /** Clears the breaker. Exported for operational recovery after topping up a quota. */
 export async function clearExhausted(model) {
   try {
-    await redisConnection.del(breakerKey(model));
+    await redisFailFast.del(breakerKey(model));
   } catch {
     // Nothing to do — it expires on its own.
   }
@@ -147,7 +151,7 @@ export async function assertCanSpend(model, count = 1) {
 
 /** A snapshot for the readiness probe and for telling a user why something is unavailable. */
 export async function quotaStatus() {
-  const models = [...new Set([GEMINI_MODEL, GEMINI_TTS_MODEL])];
+  const models = [...new Set([GEMINI_MODEL, GEMINI_TTS_MODEL, GEMINI_EMBEDDING_MODEL])];
 
   const rows = await Promise.all(
     models.map(async (model) => ({

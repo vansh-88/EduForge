@@ -1,4 +1,4 @@
-import { redisConnection } from '../../config/redis.config.js';
+import { redisFailFast } from '../../config/redis.config.js';
 
 /**
  * A small read-through cache for expensive derived reads.
@@ -17,7 +17,7 @@ const PREFIX = 'cache:';
 
 export async function readCache(key) {
   try {
-    const raw = await redisConnection.get(`${PREFIX}${key}`);
+    const raw = await redisFailFast.get(`${PREFIX}${key}`);
     return raw === null ? undefined : JSON.parse(raw);
   } catch {
     return undefined;
@@ -26,7 +26,7 @@ export async function readCache(key) {
 
 export async function writeCache(key, value, ttlSeconds) {
   try {
-    await redisConnection.set(`${PREFIX}${key}`, JSON.stringify(value), 'EX', ttlSeconds);
+    await redisFailFast.set(`${PREFIX}${key}`, JSON.stringify(value), 'EX', ttlSeconds);
   } catch {
     // Best-effort.
   }
@@ -34,7 +34,7 @@ export async function writeCache(key, value, ttlSeconds) {
 
 export async function invalidateCache(key) {
   try {
-    await redisConnection.del(`${PREFIX}${key}`);
+    await redisFailFast.del(`${PREFIX}${key}`);
   } catch {
     // Best-effort. The TTL is the backstop, which is why every entry has one.
   }

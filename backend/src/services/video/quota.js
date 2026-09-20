@@ -1,4 +1,4 @@
-import { redisConnection } from '../../config/redis.config.js';
+import { redisFailFast } from '../../config/redis.config.js';
 import {
   YOUTUBE_DAILY_QUOTA_UNITS,
   YOUTUBE_QUOTA_RESERVE,
@@ -49,7 +49,7 @@ export function msUntilQuotaReset(now = new Date()) {
 }
 
 export async function unitsUsed() {
-  const raw = await redisConnection.get(quotaDateKey());
+  const raw = await redisFailFast.get(quotaDateKey());
   return Number(raw ?? 0);
 }
 
@@ -75,9 +75,9 @@ export async function recordSpend(units) {
   if (!units) return;
 
   const key = quotaDateKey();
-  const total = await redisConnection.incrby(key, units);
+  const total = await redisFailFast.incrby(key, units);
 
   // Set on first write of the day. 48h rather than exactly-until-reset so a
   // clock skew at the boundary cannot drop the day's count early.
-  if (total === units) await redisConnection.expire(key, 48 * 60 * 60);
+  if (total === units) await redisFailFast.expire(key, 48 * 60 * 60);
 }

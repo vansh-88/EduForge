@@ -41,7 +41,7 @@ const FATAL_MESSAGES = {
  * Returns an abort function. Calling it is the only way a stream ends early —
  * it is what unmount and terminal-event cleanup both go through.
  */
-function openStream(path, { onEvent, onTerminal, onFatal, terminalTypes }) {
+function openStream(path, { onEvent, onTerminal, onFatal, terminalTypes, method = 'GET', body = null }) {
   const controller = new AbortController();
 
   // A stream ends once. Both routes to that — a terminal event type, and the
@@ -68,8 +68,14 @@ function openStream(path, { onEvent, onTerminal, onFatal, terminalTypes }) {
 
     await fetchEventSource(`${BASE_URL}${path}`, {
       signal: controller.signal,
+      method,
+      // The tutor sends the question in the body, which is why these streams are
+      // POSTs and why this cannot use the browser's native EventSource: that only
+      // issues GETs and cannot set an Authorization header either.
+      ...(body ? { body: JSON.stringify(body) } : {}),
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
         Accept: 'text/event-stream',
       },
 
@@ -187,6 +193,11 @@ const TRANSLATION_TERMINAL = [
 // remaining section, which is the opposite of what progressive playback needs.
 const AUDIO_TERMINAL = ['audio_completed', 'audio_failed', 'course_deleted'];
 
+// A tutor turn ends at its own completion or failure. 'course_deleted' is absent on
+// purpose: this stream carries one answer and is over in seconds, so it never
+// subscribes to the course fan-out the long-lived generation streams watch.
+const TUTOR_TERMINAL = ['message_complete', 'message_failed'];
+
 export const streamCourseGeneration = (courseId, handlers) =>
   openStream(`/v1/courses/${courseId}/generation/events`, {
     ...handlers,
@@ -216,3 +227,21 @@ export const streamLessonAudio = (courseId, moduleId, lessonId, handlers) =>
     `/v1/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}/audio/events`,
     { ...handlers, terminalTypes: AUDIO_TERMINAL }
   );
+
+/**
+ * One tutor answer, streamed token by token.
+ *
+ * Unlike every other stream here this is a POST — the question travels in the body.
+ * The library supports that, and the fetch-based transport was already required for
+ * the Authorization header, so nothing else about the transport changes.
+ *
+ * A retry is safe: `clientMessageId` makes the server replay the existing answer
+ * rather than asking the model twice.
+ */
+export const streamTutorMessage = (courseId, sessionId, body, handlers) =>
+  openStream(`/v1/courses/${courseId}/chat/sessions/${sessionId}/messages/stream`, {
+    ...handlers,
+    method: 'POST',
+    body,
+    terminalTypes: TUTOR_TERMINAL,
+  });

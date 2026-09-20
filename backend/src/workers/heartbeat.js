@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { redisConnection } from '../config/redis.config.js';
+import { redisFailFast } from '../config/redis.config.js';
 
 /**
  * The worker process reporting its own health to the API process.
@@ -34,7 +34,7 @@ async function beat() {
       mongo: mongoose.connection.readyState === 1,
     });
 
-    await redisConnection.set(HEARTBEAT_KEY, payload, 'EX', TTL_SECONDS);
+    await redisFailFast.set(HEARTBEAT_KEY, payload, 'EX', TTL_SECONDS);
   } catch {
     // If Redis is unreachable the key expires on its own and the API reports the
     // worker as down — which is the truth. Never let a failed heartbeat take the
@@ -61,7 +61,7 @@ export async function stopWorkerHeartbeat() {
   // Drop the key on a clean shutdown so the API reports the worker as gone
   // immediately, rather than after the TTL.
   try {
-    await redisConnection.del(HEARTBEAT_KEY);
+    await redisFailFast.del(HEARTBEAT_KEY);
   } catch {
     // Expiry is the fallback.
   }
@@ -74,7 +74,7 @@ export async function stopWorkerHeartbeat() {
 export async function readWorkerHeartbeat() {
   let raw;
   try {
-    raw = await redisConnection.get(HEARTBEAT_KEY);
+    raw = await redisFailFast.get(HEARTBEAT_KEY);
   } catch {
     return null;
   }

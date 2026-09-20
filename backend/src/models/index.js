@@ -10,3 +10,6 @@ export { VideoSlot } from './videoSlot.model.js';
 export { LessonTranslation } from './lessonTranslation.model.js';
 export { LessonAudio } from './lessonAudio.model.js';
 export { LessonAudioSegment } from './lessonAudioSegment.model.js';
+export { ChatSession } from './chatSession.model.js';
+export { ChatMessage } from './chatMessage.model.js';
+export { CourseChunk } from './courseChunk.model.js';

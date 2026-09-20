@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE } from '../../config/env.config.js';
+import { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TTS_MODEL, TTS_VOICE, GEMINI_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, CHAT_MODEL, CHAT_MAX_OUTPUT_TOKENS } from '../../config/env.config.js';
 import {z} from 'zod';
 import { sanitizeForGemini } from '../../utils/gemini/sanitiseJson.js';
 import { pcmToWav, parsePcmMimeType, pcmDurationSeconds } from '../../utils/audio/wav.js';
@@ -10,6 +10,25 @@ import { assertCanSpend, recordSpend, markExhausted } from './quota.js';
 export const gemini = new GoogleGenAI({
   apiKey: GEMINI_API_KEY,
 });
+
+/**
+ * Scales a vector to unit length.
+ *
+ * Gemini only returns pre-normalized embeddings at its native 3072 dimensions.
+ * Anything shorter is that vector truncated, which is a valid embedding but no
+ * longer unit length — and an un-normalized vector makes magnitude, which carries
+ * no meaning here, leak into similarity scores. Cheaper to fix once on write than
+ * to account for on every query.
+ *
+ * A zero vector cannot be normalized and is returned unchanged; the caller's
+ * length check has already established it is the right shape, and a chunk that
+ * embeds to zero would have failed upstream.
+ */
+function normalize(values) {
+  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  if (!magnitude) return values;
+  return values.map((value) => value / magnitude);
+}
 
 export const geminiProvider = {
 
@@ -155,6 +174,237 @@ export const geminiProvider = {
             mimeType: 'audio/wav',
             durationSeconds: pcmDurationSeconds(pcm, format),
         };
+    },
+
+
+    /**
+     * A conversational turn, returned whole.
+     *
+     * The fourth provider method, and the first that is neither structured nor
+     * single-shot: it takes a message history and a system instruction rather than
+     * one prompt string. generateStructured cannot serve this — it forces a JSON
+     * response schema, and a tutor's answer is prose.
+     *
+     * The system instruction goes through config.systemInstruction rather than being
+     * concatenated into the first turn. That is what keeps the rules the model must
+     * follow in a different channel from the course content it reasons over, which
+     * matters because that content is generated text and may say anything.
+     *
+     * @param {{ systemInstruction: string, contents: Array, maxOutputTokens?: number }} params
+     * @returns {Promise<{ text: string, inputTokens: number|null, outputTokens: number|null, finishReason: string|null }>}
+     */
+    async chat({ systemInstruction, contents, maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS }) {
+
+        await assertCanSpend(CHAT_MODEL);
+
+        let response;
+        try {
+            await recordSpend(CHAT_MODEL);
+            response = await gemini.models.generateContent({
+                model: CHAT_MODEL,
+                contents,
+                config: {
+                    systemInstruction,
+                    maxOutputTokens,
+                    // Lower than course generation's 0.7. Explaining a fixed body of
+                    // material rewards consistency, not invention — two students
+                    // asking the same question about the same lesson should not get
+                    // materially different explanations.
+                    temperature: 0.4,
+                },
+            });
+        } catch (error) {
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                await markExhausted(CHAT_MODEL);
+            }
+            throw classified;
+        }
+
+        const text = response.text;
+
+        if (!text?.trim()) {
+            // Usually a safety block or an immediate token-limit stop. There is no
+            // answer to persist, and the caller must report a failure rather than
+            // save an empty assistant turn into the conversation.
+            const reason = response.candidates?.[0]?.finishReason ?? 'unknown';
+            throw new Error(`The model returned no answer (finishReason: ${reason})`);
+        }
+
+        const usage = response.usageMetadata ?? {};
+
+        return {
+            text,
+            inputTokens: usage.promptTokenCount ?? null,
+            outputTokens: usage.candidatesTokenCount ?? null,
+            finishReason: response.candidates?.[0]?.finishReason ?? null,
+        };
+    },
+
+
+    /**
+     * The same turn, delivered a piece at a time.
+     *
+     * An async generator rather than a callback, so the caller drives the pace and
+     * `for await` cleanup propagates naturally: when the HTTP response goes away and
+     * the consumer stops iterating, this stops producing.
+     *
+     * Streaming is not a performance optimisation here, it is the feature. A tutor
+     * answer takes several seconds to generate in full, and several seconds of blank
+     * screen reads as broken; the first token arriving in a few hundred milliseconds
+     * reads as thinking.
+     *
+     * Yields `{ type: 'token', text }` for each delta and exactly one terminal
+     * `{ type: 'done', ... }` carrying the usage metadata, which Gemini only sends on
+     * the final chunk. A caller that stops early therefore never sees usage — which
+     * is precisely the abandoned-answer case, and why the persisted token counts are
+     * nullable.
+     *
+     * @param {{ systemInstruction, contents, maxOutputTokens?, abortSignal? }} params
+     */
+    async *chatStream({ systemInstruction, contents, maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS, abortSignal }) {
+
+        await assertCanSpend(CHAT_MODEL);
+
+        let stream;
+        try {
+            await recordSpend(CHAT_MODEL);
+            stream = await gemini.models.generateContentStream({
+                model: CHAT_MODEL,
+                contents,
+                config: {
+                    systemInstruction,
+                    maxOutputTokens,
+                    temperature: 0.4,
+                    // Cancels the request when the reader disconnects. Without it an
+                    // abandoned answer keeps generating — and keeps being billed —
+                    // against a response nobody will ever read.
+                    abortSignal,
+                },
+            });
+        } catch (error) {
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                await markExhausted(CHAT_MODEL);
+            }
+            throw classified;
+        }
+
+        let usage = {};
+        let finishReason = null;
+        let produced = false;
+
+        try {
+            for await (const chunk of stream) {
+                // Carried on every chunk, but only the last one is complete — so it is
+                // overwritten rather than accumulated.
+                if (chunk.usageMetadata) usage = chunk.usageMetadata;
+                if (chunk.candidates?.[0]?.finishReason) finishReason = chunk.candidates[0].finishReason;
+
+                const text = chunk.text;
+                if (!text) continue;
+
+                produced = true;
+                yield { type: 'token', text };
+            }
+        } catch (error) {
+            // An abort is the ordinary way this ends when a reader navigates away, not
+            // a failure. Rethrown as a clean terminal so the caller can persist what it
+            // has instead of unwinding through an error path.
+            if (abortSignal?.aborted) {
+                yield { type: 'aborted' };
+                return;
+            }
+            throw classifyProviderError(error);
+        }
+
+        if (!produced) {
+            // Usually a safety block or an immediate stop. There is no answer, and the
+            // caller must report a failure rather than persist an empty turn.
+            throw new Error(`The model returned no answer (finishReason: ${finishReason ?? 'unknown'})`);
+        }
+
+        yield {
+            type: 'done',
+            inputTokens: usage.promptTokenCount ?? null,
+            outputTokens: usage.candidatesTokenCount ?? null,
+            finishReason,
+        };
+    },
+
+
+    /**
+     * Embeds one or more strings, returning a vector per input in the same order.
+     *
+     * A third sibling of generateStructured and synthesizeSpeech: same quota
+     * guards, same error classification, different response shape. There is no
+     * schema to validate and no text to parse — the provider either returned
+     * vectors of the expected length or it did not.
+     *
+     * Batched deliberately. A lesson is five to a dozen chunks, and sending them
+     * as one request makes indexing a whole lesson cost ONE call against the daily
+     * budget rather than a dozen — which is the difference between indexing a back
+     * catalogue and exhausting a free-tier key on it.
+     *
+     * `taskType` is not decoration. Gemini embeds a document and the question that
+     * should retrieve it into deliberately different regions, so indexing with
+     * RETRIEVAL_DOCUMENT and querying with RETRIEVAL_QUERY measurably beats using
+     * one type for both.
+     *
+     * @param {string[]} texts
+     * @param {{ taskType?: string }} options
+     * @returns {Promise<number[][]>} one L2-normalized vector per input
+     */
+    async embed(texts, { taskType = 'RETRIEVAL_DOCUMENT' } = {}) {
+
+        if (!Array.isArray(texts) || texts.length === 0) return [];
+
+        await assertCanSpend(GEMINI_EMBEDDING_MODEL);
+
+        let response;
+        try {
+            await recordSpend(GEMINI_EMBEDDING_MODEL);
+            response = await gemini.models.embedContent({
+                model: GEMINI_EMBEDDING_MODEL,
+                contents: texts,
+                config: {
+                    taskType,
+                    // Must match the Atlas index's numDimensions exactly; the index
+                    // rejects a vector of any other length on write.
+                    outputDimensionality: EMBEDDING_DIMENSIONS,
+                },
+            });
+        } catch (error) {
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                await markExhausted(GEMINI_EMBEDDING_MODEL);
+            }
+            throw classified;
+        }
+
+        const vectors = response.embeddings ?? [];
+
+        // A short response means some inputs were silently dropped, and since the
+        // caller matches vectors to chunks by position, a short array would pair
+        // every chunk after the gap with the wrong text.
+        if (vectors.length !== texts.length) {
+            throw new Error(
+                `Gemini returned ${vectors.length} embeddings for ${texts.length} inputs`
+            );
+        }
+
+        return vectors.map((vector, index) => {
+            const values = vector?.values;
+
+            if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS) {
+                throw new Error(
+                    `Gemini returned a ${values?.length ?? 0}-dimension embedding for input ${index}; ` +
+                    `EMBEDDING_DIMENSIONS is ${EMBEDDING_DIMENSIONS}`
+                );
+            }
+
+            return normalize(values);
+        });
     },
 
 

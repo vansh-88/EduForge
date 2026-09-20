@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
 import { useLesson } from '../../hooks/useLesson';
 import { useLessonTranslation } from '../../hooks/useLessonTranslation';
 import { useLessonAudio } from '../../hooks/useLessonAudio';
@@ -7,6 +7,7 @@ import { usePdfExport } from '../../hooks/usePdfExport';
 import { Button, Spinner, ErrorState } from '../../components/common';
 import { BlockRenderer } from '../../components/lesson/BlockRenderer';
 import { LessonToolbar } from '../../components/lesson/LessonToolbar';
+import { TutorPanel } from '../../components/course-tutor';
 import { AudioPlayer } from '../../components/lesson/AudioPlayer';
 import { GenerationProgress } from '../../components/generation/GenerationProgress';
 import { LESSON_STAGE_LABELS, TRANSLATION_STAGE_LABELS, AUDIO_STAGE_LABELS } from '../../components/generation/stageLabels';
@@ -45,6 +46,7 @@ const QuizSummary = ({ quiz }) => {
 export default function Learn() {
   const { courseId, moduleId, lessonId } = useParams();
   const navigate = useNavigate();
+  const { hash } = useLocation();
 
   const onDeleted = useCallback(() => navigate('/courses'), [navigate]);
 
@@ -65,6 +67,23 @@ export default function Learn() {
     refetch,
   } = useLesson({ courseId, moduleId, lessonId, onDeleted });
 
+  /*
+   * Scrolls to the passage a tutor citation pointed at.
+   *
+   * Runs on content as well as hash, because the two race: following a citation to
+   * ANOTHER lesson navigates before that lesson has loaded, so the anchor does not
+   * exist yet on the first pass. Re-running once the blocks are rendered is what
+   * makes a cross-lesson citation land in the right place rather than at the top.
+   *
+   * Silent when the anchor is missing — a stale citation should leave the reader at
+   * the top of a lesson, which is exactly where a normal navigation puts them.
+   */
+  useEffect(() => {
+    if (!hash) return;
+    const target = document.getElementById(hash.slice(1));
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [hash, lesson?.content]);
+
   const [isCompleting, setIsCompleting] = useState(false);
   const [completeError, setCompleteError] = useState(null);
 
@@ -78,6 +97,7 @@ export default function Learn() {
   // new content.
   const audio = useLessonAudio({ courseId, moduleId, lessonId });
   const [showPlayer, setShowPlayer] = useState(false);
+  const [showTutor, setShowTutor] = useState(false);
 
   const [renderedLessonId, setRenderedLessonId] = useState(lessonId);
   if (renderedLessonId !== lessonId) {
@@ -86,6 +106,9 @@ export default function Learn() {
     // The player is dismissed on navigation rather than carried over: it would
     // otherwise keep reading the previous lesson under the new one's text.
     setShowPlayer(false);
+    // The panel closes too, but the CONVERSATION is not lost — useCourseTutor keys
+    // its cache by lesson, so returning here brings the same exchange back.
+    setShowTutor(false);
   }
 
   // Opens the player and asks for audio the first time; toggles it thereafter.
@@ -213,7 +236,22 @@ export default function Learn() {
   const hasFailed = lesson.status === 'FAILED';
 
   return (
-    <article className="mx-auto mt-8 max-w-3xl pb-20">
+    /*
+     * One column normally, two when the tutor is open — and only from `lg` up.
+     *
+     * The grid wraps the article rather than the article containing the panel, so
+     * the lesson keeps its own max-width and measure. Below `lg` the panel drops
+     * beneath the lesson at full width: a narrow column beside phone-width text
+     * would leave neither readable.
+     */
+    <div
+      className={`mx-auto mt-8 pb-20 ${
+        showTutor
+          ? 'grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]'
+          : 'max-w-3xl'
+      }`}
+    >
+    <article className={showTutor ? 'min-w-0' : ''}>
       <Link
         to={coursePath(courseId)}
         className="text-sm text-muted transition hover:text-primary-text"
@@ -232,6 +270,8 @@ export default function Learn() {
               // Nothing to translate or read aloud until there is content.
               hinglish: lesson.status === 'READY' ? handleHinglish : undefined,
               tts: lesson.status === 'READY' ? handleListen : undefined,
+              // Nothing to ground an answer in until the lesson has content.
+              tutor: lesson.status === 'READY' ? () => setShowTutor((open) => !open) : undefined,
             }}
             busy={{
               pdf: isExporting,
@@ -240,7 +280,7 @@ export default function Learn() {
               // player itself shows that more is still coming.
               tts: audio.isPreparing,
             }}
-            active={{ hinglish: showingHinglish, tts: showPlayer && audio.hasAudio }}
+            active={{ hinglish: showingHinglish, tts: showPlayer && audio.hasAudio, tutor: showTutor }}
           />
         </div>
 
@@ -430,5 +470,15 @@ export default function Learn() {
         </div>
       </nav>
     </article>
+
+      {showTutor && (
+        <TutorPanel
+          courseId={courseId}
+          lessonId={lessonId}
+          lessonReady={isReady}
+          onClose={() => setShowTutor(false)}
+        />
+      )}
+    </div>
   );
 }

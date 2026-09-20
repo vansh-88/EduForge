@@ -103,6 +103,29 @@ async function persistGeneratedLesson(session, { lessonId, courseId, generationI
   currentLesson.status = 'READY';
   await currentLesson.save({ session });
 
+  // Request indexing in the same transaction that commits the content, exactly as
+  // the video slot events below are: the tutor's knowledge base is asked for if
+  // and only if the content it would describe was actually written.
+  //
+  // Asynchronous on purpose. Embedding a lesson is a provider call, and making
+  // generation wait on it would hold a reader away from a lesson that is already
+  // finished — for a feature they may never open. The reader starts reading; the
+  // index catches up behind them.
+  await OutboxEvent.create(
+    [{
+      eventId: crypto.randomUUID(),
+      type: 'LESSON_INDEX_REQUESTED',
+      aggregateType: 'Lesson',
+      aggregateId: lessonId,
+      payload: {
+        lessonId: String(lessonId),
+        courseId: String(courseId),
+        source: 'lesson-generation',
+      },
+    }],
+    { session }
+  );
+
   const { slots, events } = buildVideoSlots(content, { lessonId, courseId, generationId });
 
   if (slots.length > 0) {
