@@ -1,6 +1,7 @@
 import { useCourseTutor } from '../../hooks/useCourseTutor';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { QuickActions } from './QuickActions';
 
 /**
  * The tutor, docked beside the lesson.
@@ -58,6 +59,13 @@ export const TutorPanel = ({ courseId, lessonId, lessonReady, onClose }) => {
         onPick={tutor.ask}
         isStreaming={tutor.isStreaming}
       />
+
+      {/* Only once there is an answer to follow up ON, and never mid-stream: these
+          all refer to "that", which means nothing before the first reply and means
+          something half-written while one is still arriving. */}
+      {tutor.hasConversation && !tutor.isStreaming && (
+        <QuickActions onPick={tutor.ask} disabled={!lessonReady} />
+      )}
 
       {tutor.error && (
         <p className="border-t border-danger-line bg-danger-soft px-4 py-2 text-xs text-danger-text" role="alert">

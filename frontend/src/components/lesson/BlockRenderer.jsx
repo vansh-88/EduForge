@@ -3,6 +3,7 @@ import { ParagraphBlock } from './blocks/ParagraphBlock';
 import { CodeBlock } from './blocks/CodeBlock';
 import { VideoBlock } from './blocks/VideoBlock';
 import { McqBlock } from './blocks/McqBlock';
+import { blockAnchorId } from '../../utils/paths';
 
 /**
  * Renders a lesson's content blocks.
@@ -23,32 +24,50 @@ export const BlockRenderer = ({ blocks = [], quizByQuestionId, onAnswer }) => (
       // playback — if block ordering ever changed.
       const key = block.id ?? block.slotId ?? `${block.type}-${index}`;
 
-      switch (block.type) {
-        case 'heading':
-          return <HeadingBlock key={key} block={block} />;
+      const rendered = (() => {
+        switch (block.type) {
+          case 'heading':
+            return <HeadingBlock block={block} />;
 
-        case 'paragraph':
-          return <ParagraphBlock key={key} block={block} />;
+          case 'paragraph':
+            return <ParagraphBlock block={block} />;
 
-        case 'code':
-          return <CodeBlock key={key} block={block} />;
+          case 'code':
+            return <CodeBlock block={block} />;
 
-        case 'video':
-          return <VideoBlock key={key} block={block} />;
+          case 'video':
+            return <VideoBlock block={block} />;
 
-        case 'mcq':
-          return (
-            <McqBlock
-              key={key}
-              block={block}
-              state={quizByQuestionId?.[block.id]}
-              onAnswer={onAnswer}
-            />
-          );
+          case 'mcq':
+            return (
+              <McqBlock
+                block={block}
+                state={quizByQuestionId?.[block.id]}
+                onAnswer={onAnswer}
+              />
+            );
 
-        default:
-          return null;
-      }
+          default:
+            return null;
+        }
+      })();
+
+      if (!rendered) return null;
+
+      /*
+       * A wrapper rather than an id on each block component: it keeps the anchor in
+       * one place instead of threading a prop through five components that have no
+       * other reason to know their own position.
+       *
+       * scroll-mt keeps the target clear of the sticky navbar — without it the
+       * browser scrolls the anchor to y=0, underneath the header, and the reader
+       * lands above the passage they asked about.
+       */
+      return (
+        <div key={key} id={blockAnchorId(index)} className="scroll-mt-24">
+          {rendered}
+        </div>
+      );
     })}
   </>
 );

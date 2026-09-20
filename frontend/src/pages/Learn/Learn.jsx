@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
 import { useLesson } from '../../hooks/useLesson';
 import { useLessonTranslation } from '../../hooks/useLessonTranslation';
 import { useLessonAudio } from '../../hooks/useLessonAudio';
@@ -46,6 +46,7 @@ const QuizSummary = ({ quiz }) => {
 export default function Learn() {
   const { courseId, moduleId, lessonId } = useParams();
   const navigate = useNavigate();
+  const { hash } = useLocation();
 
   const onDeleted = useCallback(() => navigate('/courses'), [navigate]);
 
@@ -65,6 +66,23 @@ export default function Learn() {
     markComplete,
     refetch,
   } = useLesson({ courseId, moduleId, lessonId, onDeleted });
+
+  /*
+   * Scrolls to the passage a tutor citation pointed at.
+   *
+   * Runs on content as well as hash, because the two race: following a citation to
+   * ANOTHER lesson navigates before that lesson has loaded, so the anchor does not
+   * exist yet on the first pass. Re-running once the blocks are rendered is what
+   * makes a cross-lesson citation land in the right place rather than at the top.
+   *
+   * Silent when the anchor is missing — a stale citation should leave the reader at
+   * the top of a lesson, which is exactly where a normal navigation puts them.
+   */
+  useEffect(() => {
+    if (!hash) return;
+    const target = document.getElementById(hash.slice(1));
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [hash, lesson?.content]);
 
   const [isCompleting, setIsCompleting] = useState(false);
   const [completeError, setCompleteError] = useState(null);
