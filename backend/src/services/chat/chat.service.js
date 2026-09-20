@@ -263,6 +263,7 @@ export async function persistAnswer({ session, context, text, usage = {}, trunca
       chunk: source._id,
       lesson: source.lesson,
       heading: source.heading ?? null,
+      blockStart: source.blockStart ?? null,
       score: source.score ?? null,
     })),
   });
@@ -503,6 +504,7 @@ function sourcesForWire(sources = []) {
     lessonTitle: source.lessonTitle ?? null,
     moduleId: source.moduleId ? String(source.moduleId) : null,
     heading: source.heading ?? null,
+    blockStart: typeof source.blockStart === 'number' ? source.blockStart : null,
     score: typeof source.score === 'number' ? Number(source.score.toFixed(4)) : null,
   }));
 }

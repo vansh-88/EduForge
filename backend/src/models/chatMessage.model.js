@@ -39,6 +39,19 @@ const messageSourceSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    /**
+     * Where in the lesson the passage sits, so a citation can land on the section
+     * rather than the top of the page.
+     *
+     * Positional, and that is safe for the same reason the lesson renderer keys
+     * blocks by position: content is immutable once READY. A regenerated lesson
+     * shifts these — but it also changes the lesson's content hash, which retires
+     * every chunk derived from it, so a stale index can never be cited.
+     */
+    blockStart: {
+      type: Number,
+      default: null,
+    },
     score: {
       type: Number,
       default: null,

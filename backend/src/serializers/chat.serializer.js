@@ -35,6 +35,8 @@ export const toMessageSourceDTO = (source) => ({
   lessonTitle: source.lessonTitle ?? null,
   moduleId: source.moduleId ? source.moduleId.toString() : null,
   heading: source.heading ?? null,
+  // Lets a citation deep-link to the passage rather than the top of the lesson.
+  blockStart: typeof source.blockStart === 'number' ? source.blockStart : null,
   score: typeof source.score === 'number' ? Number(source.score.toFixed(4)) : null,
 });
 
