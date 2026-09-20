@@ -1,9 +1,10 @@
 import {
-  createSession, listSessions, getSession, deleteSession, sendMessage,
+  createSession, listSessions, getSession, deleteSession, sendMessage, streamMessage,
 } from '../services/chat/chat.service.js';
 import {
   toChatSessionDTO, toChatSessionDetailDTO, toChatMessageDTO,
 } from '../serializers/chat.serializer.js';
+import { openChatStream } from '../services/realtime/chatStream.js';
 
 /**
  * Thin by design.
@@ -87,4 +88,49 @@ export const postChatMessage = async (req, res) => {
       ...(result.retrievalDegraded ? { retrievalDegraded: true } : {}),
     },
   });
+};
+
+
+/**
+ * Asks a question and streams the answer as it is generated.
+ *
+ * The browser's endpoint. POST rather than GET because the question travels in the
+ * body, which is also why the client cannot use the native EventSource — it only
+ * issues GETs and cannot set an Authorization header. The frontend already uses a
+ * fetch-based SSE client for exactly that reason.
+ *
+ * Everything that can refuse this request must refuse it BEFORE the stream opens:
+ * once the 200 and the SSE headers are committed there is no status code left to
+ * send, and an error can only be reported as an event. So authorization happens
+ * inside streamMessage's prepareTurn, and anything it throws propagates to the normal
+ * error handler with the headers still unsent.
+ *
+ * Errors AFTER that point are carried as a `message_failed` event instead. The global
+ * handler's res.headersSent branch is the backstop if one escapes.
+ */
+export const streamChatMessage = async (req, res) => {
+  const stream = openChatStream(req, res);
+
+  try {
+    await streamMessage({
+      userId: req.user._id,
+      courseId: req.params.courseId,
+      sessionId: req.params.sessionId,
+      message: req.validated.body.message,
+      clientMessageId: req.validated.body.clientMessageId ?? null,
+      stream,
+    });
+  } catch (error) {
+    // prepareTurn throws before a byte is written for anything a client can fix — a
+    // session that is not theirs, a course that does not exist. The stream is already
+    // open by then, so it cannot become a 404; report it as a terminal event with the
+    // code the client already knows how to render.
+    if (!stream.closed) {
+      stream.send('message_failed', {
+        error: error.message,
+        code: error.code ?? (error.statusCode === 404 ? 'NOT_FOUND' : 'CHAT_ERROR'),
+      });
+      stream.close();
+    }
+  }
 };

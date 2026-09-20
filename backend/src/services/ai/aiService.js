@@ -75,3 +75,20 @@ export async function chat(params) {
 
     return await provider.chat(params);
 }
+
+
+/**
+ * One tutor turn, streamed.
+ *
+ * Returns the provider's async generator directly rather than wrapping it: buffering
+ * to re-yield would defeat the only reason this exists, and there is nothing to
+ * validate between the provider and the caller.
+ */
+export function chatStream(params) {
+
+    if (typeof provider.chatStream !== 'function') {
+        throw new Error('The configured AI provider does not support streaming chat');
+    }
+
+    return provider.chatStream(params);
+}

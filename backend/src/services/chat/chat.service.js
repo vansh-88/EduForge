@@ -5,7 +5,7 @@ import { loadAuthorizedLesson } from '../lesson/lesson.service.js';
 import { ensureCourseIndexed } from '../knowledge/indexing.service.js';
 import { retrieveRelevantChunks } from './retrieval.service.js';
 import { buildTutorContext } from './context.builder.js';
-import { chat as generateChatAnswer } from '../ai/aiService.js';
+import { chat as generateChatAnswer, chatStream } from '../ai/aiService.js';
 import { CHAT_MODEL } from '../../config/env.config.js';
 
 /**
@@ -332,4 +332,177 @@ export async function sendMessage({ userId, courseId, sessionId, message, client
     stats: context.stats,
     retrievalDegraded: prepared.retrieval.degraded,
   };
+}
+
+
+/**
+ * One tutor turn, streamed to an already-open SSE response.
+ *
+ * Shares prepareTurn and persistAnswer with sendMessage, so retrieval, the prompt,
+ * the persisted question and the recorded citations are identical whether the answer
+ * arrives in one piece or a token at a time. Only the provider call and the
+ * transport differ, which is the whole reason those two were split out.
+ *
+ * The caller owns the stream and does the authorization; this owns what goes down it.
+ *
+ * @param {object} params
+ * @param {{ send, close, onDisconnect, closed }} params.stream  from openChatStream
+ */
+export async function streamMessage({ userId, courseId, sessionId, message, clientMessageId = null, stream }) {
+  const prepared = await prepareTurn({ userId, courseId, sessionId, message, clientMessageId });
+
+  /*
+   * A replayed retry still streams, rather than returning the stored answer as JSON.
+   *
+   * The client asked for a stream and has a stream renderer attached; handing it a
+   * different response shape for a case it cannot predict would mean every consumer
+   * needs two code paths. So the stored answer is emitted as a single token followed
+   * by the usual terminal. Nothing is regenerated and nothing is spent.
+   */
+  if (prepared.replay) {
+    stream.send('message_start', {
+      messageId: String(prepared.userMessage._id),
+      sessionId: String(prepared.session._id),
+      replay: true,
+    });
+    if (prepared.answer) {
+      // Stored sources carry ids only; the title and module a citation links with are
+      // read from the lessons, for the same reason the read path hydrates them — a
+      // renamed lesson must not be cited under a title that no longer exists.
+      const [hydrated] = await hydrateSources([prepared.answer]);
+      stream.send('sources', { sources: sourcesForWire(hydrated.sources) });
+      stream.send('token', { text: prepared.answer.content });
+    }
+    stream.send('message_complete', {
+      messageId: prepared.answer ? String(prepared.answer._id) : null,
+      replay: true,
+      truncated: Boolean(prepared.answer?.truncated),
+    });
+    stream.close();
+    return { replay: true };
+  }
+
+  const { session, context, retrieval } = prepared;
+
+  stream.send('message_start', {
+    messageId: String(prepared.userMessage._id),
+    sessionId: String(session._id),
+    // Tells the client the answer was produced without the course index, so it can
+    // say so rather than letting a thin answer look like the course's fault.
+    ...(retrieval.degraded ? { retrievalDegraded: true } : {}),
+  });
+
+  /*
+   * Citations go out BEFORE the first token.
+   *
+   * Two reasons. The interface can render the source rail immediately instead of
+   * waiting for the answer to finish. And, more importantly, these come from the
+   * retrieval that actually ran — the model is forbidden from naming sources itself
+   * (system prompt rule 4), so there is nothing to wait for it to say.
+   */
+  stream.send('sources', { sources: sourcesForWire(context.sources) });
+
+  // Cancels the provider call when the reader goes away. Without it an abandoned
+  // answer keeps generating, and keeps being billed, against nobody.
+  const controller = new AbortController();
+
+  let text = '';
+  let usage = {};
+  let aborted = false;
+
+  stream.onDisconnect(() => {
+    aborted = true;
+    controller.abort();
+  });
+
+  try {
+    for await (const event of chatStream({
+      systemInstruction: context.systemInstruction,
+      contents: context.contents,
+      abortSignal: controller.signal,
+    })) {
+      if (event.type === 'token') {
+        text += event.text;
+        stream.send('token', { text: event.text });
+        continue;
+      }
+
+      if (event.type === 'aborted') {
+        aborted = true;
+        break;
+      }
+
+      if (event.type === 'done') {
+        usage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens };
+      }
+    }
+  } catch (error) {
+    /*
+     * Persist whatever arrived before the failure.
+     *
+     * A question with no reply at all is worse than a short one: the next turn's
+     * history would show the student asking and the tutor silently ignoring them,
+     * and the model would be reading that as an example of how to behave.
+     */
+    if (text.trim()) {
+      await persistAnswer({
+        session, context: { ...context, question: message },
+        text: text.trim(), usage, truncated: true,
+      });
+    }
+
+    stream.send('message_failed', {
+      error: error.message,
+      code: error.code ?? 'LLM_ERROR',
+      partial: Boolean(text.trim()),
+    });
+    stream.close();
+    return { failed: true };
+  }
+
+  /*
+   * Persisted even when the reader disconnected mid-answer.
+   *
+   * The stream is gone, so nothing is sent — but the conversation has to stay
+   * coherent for when they come back, and `truncated` is what lets the interface say
+   * the answer was cut short instead of presenting half an explanation as complete.
+   */
+  if (!text.trim()) {
+    if (!aborted) {
+      stream.send('message_failed', { error: 'The tutor returned an empty answer.', code: 'LLM_EMPTY' });
+      stream.close();
+    }
+    return { failed: true, aborted };
+  }
+
+  const answer = await persistAnswer({
+    session,
+    context: { ...context, question: message },
+    text: text.trim(),
+    usage,
+    truncated: aborted,
+  });
+
+  if (aborted) return { aborted: true, answer };
+
+  stream.send('message_complete', {
+    messageId: String(answer._id),
+    inputTokens: usage.inputTokens ?? null,
+    outputTokens: usage.outputTokens ?? null,
+  });
+  stream.close();
+
+  return { answer };
+}
+
+/** Citation payload for the wire. Never the chunk text — see the serializer. */
+function sourcesForWire(sources = []) {
+  return sources.map((source) => ({
+    chunkId: String(source._id ?? source.chunk ?? ''),
+    lessonId: String(source.lesson ?? ''),
+    lessonTitle: source.lessonTitle ?? null,
+    moduleId: source.moduleId ? String(source.moduleId) : null,
+    heading: source.heading ?? null,
+    score: typeof source.score === 'number' ? Number(source.score.toFixed(4)) : null,
+  }));
 }

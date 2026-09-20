@@ -243,6 +243,97 @@ export const geminiProvider = {
 
 
     /**
+     * The same turn, delivered a piece at a time.
+     *
+     * An async generator rather than a callback, so the caller drives the pace and
+     * `for await` cleanup propagates naturally: when the HTTP response goes away and
+     * the consumer stops iterating, this stops producing.
+     *
+     * Streaming is not a performance optimisation here, it is the feature. A tutor
+     * answer takes several seconds to generate in full, and several seconds of blank
+     * screen reads as broken; the first token arriving in a few hundred milliseconds
+     * reads as thinking.
+     *
+     * Yields `{ type: 'token', text }` for each delta and exactly one terminal
+     * `{ type: 'done', ... }` carrying the usage metadata, which Gemini only sends on
+     * the final chunk. A caller that stops early therefore never sees usage — which
+     * is precisely the abandoned-answer case, and why the persisted token counts are
+     * nullable.
+     *
+     * @param {{ systemInstruction, contents, maxOutputTokens?, abortSignal? }} params
+     */
+    async *chatStream({ systemInstruction, contents, maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS, abortSignal }) {
+
+        await assertCanSpend(CHAT_MODEL);
+
+        let stream;
+        try {
+            await recordSpend(CHAT_MODEL);
+            stream = await gemini.models.generateContentStream({
+                model: CHAT_MODEL,
+                contents,
+                config: {
+                    systemInstruction,
+                    maxOutputTokens,
+                    temperature: 0.4,
+                    // Cancels the request when the reader disconnects. Without it an
+                    // abandoned answer keeps generating — and keeps being billed —
+                    // against a response nobody will ever read.
+                    abortSignal,
+                },
+            });
+        } catch (error) {
+            const classified = classifyProviderError(error);
+            if (classified instanceof ProviderQuotaError && classified.daily) {
+                await markExhausted(CHAT_MODEL);
+            }
+            throw classified;
+        }
+
+        let usage = {};
+        let finishReason = null;
+        let produced = false;
+
+        try {
+            for await (const chunk of stream) {
+                // Carried on every chunk, but only the last one is complete — so it is
+                // overwritten rather than accumulated.
+                if (chunk.usageMetadata) usage = chunk.usageMetadata;
+                if (chunk.candidates?.[0]?.finishReason) finishReason = chunk.candidates[0].finishReason;
+
+                const text = chunk.text;
+                if (!text) continue;
+
+                produced = true;
+                yield { type: 'token', text };
+            }
+        } catch (error) {
+            // An abort is the ordinary way this ends when a reader navigates away, not
+            // a failure. Rethrown as a clean terminal so the caller can persist what it
+            // has instead of unwinding through an error path.
+            if (abortSignal?.aborted) {
+                yield { type: 'aborted' };
+                return;
+            }
+            throw classifyProviderError(error);
+        }
+
+        if (!produced) {
+            // Usually a safety block or an immediate stop. There is no answer, and the
+            // caller must report a failure rather than persist an empty turn.
+            throw new Error(`The model returned no answer (finishReason: ${finishReason ?? 'unknown'})`);
+        }
+
+        yield {
+            type: 'done',
+            inputTokens: usage.promptTokenCount ?? null,
+            outputTokens: usage.candidatesTokenCount ?? null,
+            finishReason,
+        };
+    },
+
+
+    /**
      * Embeds one or more strings, returning a vector per input in the same order.
      *
      * A third sibling of generateStructured and synthesizeSpeech: same quota

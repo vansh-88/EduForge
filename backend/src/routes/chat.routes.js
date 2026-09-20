@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  createChatSession, listChatSessions, getChatSession, deleteChatSession, postChatMessage,
+  createChatSession, listChatSessions, getChatSession, deleteChatSession, postChatMessage, streamChatMessage,
 } from '../controllers/chat.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { createChatSessionSchema, sendChatMessageSchema } from '../schemas/index.js';
@@ -37,4 +37,22 @@ chatRouter.post(
   chatRateLimiter,
   validate(sendChatMessageSchema),
   postChatMessage
+);
+
+/**
+ * The streaming sibling, and what the browser actually calls.
+ *
+ * Same limiter tier as the non-streaming endpoint — it is the same provider call, so
+ * the cost is identical and routing around the limit by choosing a transport would
+ * make the tier meaningless.
+ *
+ * NOT on the stream tier that the generation SSE routes use. That tier exists because
+ * each of those holds a dedicated Redis subscriber open for its lifetime; this holds
+ * no Redis connection at all, and lives only as long as one answer takes to write.
+ */
+chatRouter.post(
+  '/sessions/:sessionId/messages/stream',
+  chatRateLimiter,
+  validate(sendChatMessageSchema),
+  streamChatMessage
 );
