@@ -19,6 +19,39 @@ import { CHAT_MODEL } from '../../config/env.config.js';
  * file and only in this file.
  */
 
+/**
+ * One line per tutor turn.
+ *
+ * Deliberately records ids and measurements and NOTHING ELSE. The question and the
+ * answer are absent by design: chat content is the most sensitive data this feature
+ * handles, it is already durably stored where it belongs, and a production log is
+ * the one place it must not also accumulate.
+ *
+ * What IS here is what a slow or bad answer is diagnosed from — time to first token,
+ * which is the metric streaming exists to improve; how much course context was
+ * actually found; and whether retrieval was degraded, which is the difference
+ * between "the course does not cover this" and "we could not look".
+ */
+function logTurn({ userId, courseId, sessionId, messageId, stats, retrieval, usage, ttftMs, startedAt, truncated, failed }) {
+  const parts = [
+    `user=${userId}`,
+    `course=${courseId}`,
+    `session=${sessionId}`,
+    messageId ? `message=${messageId}` : null,
+    `model=${CHAT_MODEL}`,
+    `chunks=${stats?.retrievedChunks ?? 0}`,
+    stats?.duplicateChunksDropped ? `dupesDropped=${stats.duplicateChunksDropped}` : null,
+    retrieval?.degraded ? `degraded=${retrieval.reason}` : null,
+    ttftMs != null ? `ttft=${ttftMs}ms` : null,
+    `total=${Date.now() - startedAt}ms`,
+    usage?.inputTokens != null ? `in=${usage.inputTokens}` : null,
+    usage?.outputTokens != null ? `out=${usage.outputTokens}` : null,
+    truncated ? 'truncated' : null,
+  ].filter(Boolean);
+
+  console.log(`[Tutor] ${failed ? '❌' : '💬'} ${parts.join(' ')}`);
+}
+
 /** Proves the caller owns the course, and returns it. */
 async function loadAuthorizedCourse({ userId, courseId }) {
   if (!mongoose.Types.ObjectId.isValid(courseId)) {
@@ -300,6 +333,7 @@ function deriveTitle(context) {
  * this one stays, because it is what a non-browser caller and the tests want.
  */
 export async function sendMessage({ userId, courseId, sessionId, message, clientMessageId = null }) {
+  const startedAt = Date.now();
   const prepared = await prepareTurn({ userId, courseId, sessionId, message, clientMessageId });
 
   if (prepared.replay) {
@@ -323,6 +357,13 @@ export async function sendMessage({ userId, courseId, sessionId, message, client
     context: { ...context, question: message },
     text: result.text.trim(),
     usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens },
+  });
+
+  logTurn({
+    userId, courseId, sessionId, messageId: answer._id,
+    stats: context.stats, retrieval: prepared.retrieval,
+    usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens },
+    startedAt,
   });
 
   return {
@@ -350,6 +391,7 @@ export async function sendMessage({ userId, courseId, sessionId, message, client
  * @param {{ send, close, onDisconnect, closed }} params.stream  from openChatStream
  */
 export async function streamMessage({ userId, courseId, sessionId, message, clientMessageId = null, stream }) {
+  const startedAt = Date.now();
   const prepared = await prepareTurn({ userId, courseId, sessionId, message, clientMessageId });
 
   /*
@@ -410,6 +452,8 @@ export async function streamMessage({ userId, courseId, sessionId, message, clie
   let text = '';
   let usage = {};
   let aborted = false;
+  // The metric streaming exists to improve, so it is the one worth measuring.
+  let ttftMs = null;
 
   stream.onDisconnect(() => {
     aborted = true;
@@ -423,6 +467,7 @@ export async function streamMessage({ userId, courseId, sessionId, message, clie
       abortSignal: controller.signal,
     })) {
       if (event.type === 'token') {
+        if (ttftMs === null) ttftMs = Date.now() - startedAt;
         text += event.text;
         stream.send('token', { text: event.text });
         continue;
@@ -451,6 +496,11 @@ export async function streamMessage({ userId, courseId, sessionId, message, clie
         text: text.trim(), usage, truncated: true,
       });
     }
+
+    logTurn({
+      userId, courseId, sessionId, stats: context.stats, retrieval,
+      usage, ttftMs, startedAt, truncated: Boolean(text.trim()), failed: true,
+    });
 
     stream.send('message_failed', {
       error: error.message,
@@ -482,6 +532,11 @@ export async function streamMessage({ userId, courseId, sessionId, message, clie
     text: text.trim(),
     usage,
     truncated: aborted,
+  });
+
+  logTurn({
+    userId, courseId, sessionId, messageId: answer._id,
+    stats: context.stats, retrieval, usage, ttftMs, startedAt, truncated: aborted,
   });
 
   if (aborted) return { aborted: true, answer };

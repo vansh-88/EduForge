@@ -301,6 +301,20 @@ const CHAT_RETRIEVAL_TOP_K = Number(process.env.CHAT_RETRIEVAL_TOP_K || 5);
  */
 const CHAT_RETRIEVAL_MIN_SCORE = Number(process.env.CHAT_RETRIEVAL_MIN_SCORE || 0.78);
 
+/*
+ * How long a retrieval result may be reused.
+ *
+ * Retrieval is the dominant cost before the first token — around 1.3s of a measured
+ * 2.9s, nearly all of it the embedding round trip. It is also highly repetitive:
+ * the quick-action buttons send fixed prompts, students re-ask the same thing in a
+ * session, and a course's chunks do not move between one question and the next.
+ *
+ * Short on purpose. The cache must not outlive a reindex by long enough to be
+ * noticed — a lesson generated moments ago should become answerable in seconds, not
+ * minutes. Set to 0 to disable.
+ */
+const CHAT_RETRIEVAL_CACHE_TTL_SECONDS = Number(process.env.CHAT_RETRIEVAL_CACHE_TTL_SECONDS || 120);
+
 // How much a chunk from the lesson being read outranks an equally similar chunk
 // from elsewhere in the course. Deliberately mild: the reader's own lesson is the
 // most likely place their question comes from, but a firmer thumb on the scale
@@ -473,6 +487,7 @@ export {
   CHAT_ALLOW_GENERAL_KNOWLEDGE,
   CHAT_RETRIEVAL_TOP_K,
   CHAT_RETRIEVAL_MIN_SCORE,
+  CHAT_RETRIEVAL_CACHE_TTL_SECONDS,
   CHAT_CURRENT_LESSON_BOOST,
   CHAT_HISTORY_MAX_MESSAGES,
   CHAT_CONTEXT_LESSON_MAX_CHARS,

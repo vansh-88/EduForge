@@ -3,7 +3,10 @@ import { CourseChunk, Lesson } from '../../models/index.js';
 import { embedTexts } from '../ai/aiService.js';
 import {
   VECTOR_INDEX_NAME, CHAT_RETRIEVAL_TOP_K, CHAT_CURRENT_LESSON_BOOST, CHAT_RETRIEVAL_MIN_SCORE,
+  CHAT_RETRIEVAL_CACHE_TTL_SECONDS,
 } from '../../config/env.config.js';
+import { cached } from '../cache/cache.js';
+import crypto from 'node:crypto';
 
 /**
  * Finding the parts of a course that bear on a question.
@@ -50,6 +53,55 @@ let unsupportedWarningShown = false;
  */
 export async function retrieveRelevantChunks({ courseId, lessonId = null, query, topK = CHAT_RETRIEVAL_TOP_K }) {
   if (!query?.trim()) return { chunks: [], degraded: false, reason: null };
+
+  if (CHAT_RETRIEVAL_CACHE_TTL_SECONDS > 0) {
+    const key = retrievalCacheKey({ courseId, lessonId, query, topK });
+
+    /*
+     * Read-through, and DEGRADED results are never cached.
+     *
+     * Caching a degradation would turn a momentary outage — an index still
+     * building, a failed embedding — into a fixed window during which the tutor
+     * answers from the current lesson only, long after the cause has cleared.
+     *
+     * `cached` never stores null or undefined, so returning undefined on a
+     * degraded result is what keeps it out.
+     */
+    const hit = await cached(key, CHAT_RETRIEVAL_CACHE_TTL_SECONDS, async () => {
+      const result = await runRetrieval({ courseId, lessonId, query, topK });
+      return result.degraded ? undefined : result;
+    });
+
+    if (hit) return hit;
+
+    // Degraded: `cached` computed it, declined to store it, and returned undefined.
+    // Run once more so the caller still gets the reason.
+    return runRetrieval({ courseId, lessonId, query, topK });
+  }
+
+  return runRetrieval({ courseId, lessonId, query, topK });
+}
+
+/**
+ * The cache key.
+ *
+ * The question is normalized — trimmed, lowercased, whitespace collapsed — so
+ * "What is a client?" and "what is a client?" share an entry. It is then HASHED
+ * rather than embedded in the key: a student's question can be two thousand
+ * characters, and Redis keys are better short and fixed-width than long and
+ * unbounded.
+ *
+ * lessonId is part of the key because the current-lesson boost reorders results, so
+ * the same question asked from two lessons is legitimately two different answers.
+ */
+function retrievalCacheKey({ courseId, lessonId, query, topK }) {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, ' ');
+  const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
+  return `retrieval:${courseId}:${lessonId ?? 'course'}:${topK}:${digest}`;
+}
+
+/** The uncached path. Everything below here is unchanged by caching. */
+async function runRetrieval({ courseId, lessonId, query, topK }) {
 
   const courseObjectId = new mongoose.Types.ObjectId(String(courseId));
 
